@@ -62,11 +62,26 @@
     .stock-info .code { color: #69f; font-size: 13px; margin-left: 6px; }
     .stock-info .price { color: #f5a623; font-size: 15px; font-weight: bold; margin-left: 8px; }
     .stock-info .pct { font-size: 13px; margin-left: 6px; padding: 2px 8px; border-radius: 4px; }
+    
+    /* 实时行情数据展示 */
+    .realtime-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 4px; padding: 6px 12px; background: #0f1923; border-bottom: 1px solid #2a3a4a; font-size: 11px; }
+    .realtime-item { background: #1a2733; border-radius: 4px; padding: 6px; text-align: center; }
+    .realtime-item .rt-label { color: #689; font-size: 10px; margin-bottom: 2px; }
+    .realtime-item .rt-value { color: #fff; font-size: 13px; font-weight: bold; }
+    .realtime-item .rt-value.up { color: #f04141; }
+    .realtime-item .rt-value.down { color: #1abc9c; }
 
     .tabs { display: flex; padding: 0 12px; background: #1a2733; border-bottom: 1px solid #2a3a4a; }
     .tabs button { padding: 10px 16px; border: none; background: none; color: #89a; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; }
     .tabs button.active { color: #f04141; border-bottom-color: #f04141; }
     .tabs button:active { color: #fff; }
+
+    /* K线周期选择 */
+    .period-selector { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: #141e28; border-bottom: 1px solid #2a3a4a; font-size: 12px; }
+    .period-selector .label { color: #689; white-space: nowrap; }
+    .period-btn { padding: 4px 10px; border: 1px solid #3a4a5a; border-radius: 4px; background: none; color: #89a; font-size: 11px; cursor: pointer; }
+    .period-btn.active { background: #2196F3; color: #fff; border-color: #2196F3; }
+    .period-btn:active { background: #1a2733; }
 
     .chart-box { padding: 4px 6px; position: relative; background: #0f1923; }
     #kline-chart { width: 100%; height: 380px; }
@@ -149,9 +164,54 @@
   <button class="status-btn" onclick="toggleFav()" id="fav-btn" title="添加/取消自选">☆ 加自选</button>
 </div>
 
+<!-- 实时行情数据 -->
+<div class="realtime-info" id="realtime-info" style="display:none">
+  <div class="realtime-item">
+    <div class="rt-label">今开</div>
+    <div class="rt-value" id="rt-open">--</div>
+  </div>
+  <div class="realtime-item">
+    <div class="rt-label">最高</div>
+    <div class="rt-value up" id="rt-high">--</div>
+  </div>
+  <div class="realtime-item">
+    <div class="rt-label">最低</div>
+    <div class="rt-value down" id="rt-low">--</div>
+  </div>
+  <div class="realtime-item">
+    <div class="rt-label">昨收</div>
+    <div class="rt-value" id="rt-preclose">--</div>
+  </div>
+  <div class="realtime-item">
+    <div class="rt-label">成交量</div>
+    <div class="rt-value" id="rt-volume">--</div>
+  </div>
+  <div class="realtime-item">
+    <div class="rt-label">成交额</div>
+    <div class="rt-value" id="rt-amount">--</div>
+  </div>
+  <div class="realtime-item">
+    <div class="rt-label">换手率</div>
+    <div class="rt-value" id="rt-turnover">--</div>
+  </div>
+  <div class="realtime-item">
+    <div class="rt-label">市盈率</div>
+    <div class="rt-value" id="rt-pe">--</div>
+  </div>
+</div>
+
 <div class="tabs">
   <button class="active" onclick="switchTab('macd',this)">MACD</button>
   <button onclick="switchTab('rsi',this)">RSI</button>
+</div>
+
+<!-- K线周期选择 -->
+<div class="period-selector">
+  <span class="label">周期:</span>
+  <button class="period-btn active" onclick="switchPeriod('day', this)">日线</button>
+  <button class="period-btn" onclick="switchPeriod('week', this)">周线</button>
+  <button class="period-btn" onclick="switchPeriod('month', this)">月线</button>
+  <button class="period-btn" onclick="switchPeriod('60min', this)">60分钟</button>
 </div>
 
 <div class="chart-box"><div id="kline-chart"></div></div>
@@ -173,6 +233,7 @@ var currentCode = '';
 var currentName = '';
 var stockData = null;
 var currentIndicator = 'macd';
+var currentPeriod = 'day'; // 当前K线周期: day/week/month/60min
 
 /* ===== 股票代码映射表（搜索使用） ===== */
 var STOCK_MAP = {
@@ -195,6 +256,155 @@ var STOCK_MAP = {
 
 function getStockName(code) {
   return STOCK_MAP[code] || code;
+}
+
+/* ===== 腾讯财经股票搜索API ===== */
+async function searchStockFromTencent(keyword) {
+  if (!keyword || keyword.length < 1) return [];
+  
+  // 腾讯财经搜索API (JSONP)
+  var url = 'https://smartbox.gtimg.cn/s3/?v=2&q=' + encodeURIComponent(keyword) + '&t=all';
+  
+  try {
+    var data = await jsonp(url, 8000);
+    if (!data || !data.v || !Array.isArray(data.v)) return [];
+    
+    var results = [];
+    for (var i = 0; i < data.v.length && i < 15; i++) {
+      var item = data.v[i];
+      // item格式: ["sh600519", "贵州茅台", "gzmt", "gupiao"]
+      if (!item || !item[0] || !item[1]) continue;
+      
+      var fullCode = item[0]; // sh600519 或 sz000001
+      var name = item[1];
+      var code = fullCode.substring(2); // 提取6位代码
+      
+      // 只保留A股
+      if (!/^\d{6}$/.test(code)) continue;
+      
+      results.push({
+        code: code,
+        name: name,
+        market: fullCode.substring(0, 2) // sh 或 sz
+      });
+    }
+    return results;
+  } catch(err) {
+    console.warn('[腾讯搜索] 失败:', err.message);
+    return [];
+  }
+}
+
+/* ===== 获取实时行情数据（腾讯财经） ===== */
+async function fetchRealtimeQuote(code) {
+  if (!code || code.length !== 6) return null;
+  
+  var symbol = makeSinaSymbol(code);
+  var url = 'https://qt.gtimg.cn/q=' + symbol;
+  
+  try {
+    var data = await jsonp(url, 8000);
+    if (!data || typeof data !== 'string') return null;
+    
+    // 解析腾讯返回的数据格式
+    // v_sh600519="1~贵州茅台~600519~1720.00~1700.00~1680.00~..."
+    var match = data.match(/"([^"]+)"/);
+    if (!match || !match[1]) return null;
+    
+    var parts = match[1].split('~');
+    if (parts.length < 50) return null;
+    
+    /*
+     * 腾讯实时数据字段说明（部分关键字段）:
+     * [0]: 市场标识 [1]: 股票名称 [2]: 股票代码
+     * [3]: 当前价 [4]: 昨收 [5]: 今开
+     * [6]: 成交量(手) [7]: 外盘 [8]: 内盘
+     * [9]: 买一 [10]: 买一量 [11]: 买二 ...
+     * [19]: 卖一 [20]: 卖一量 [21]: 卖二 ...
+     * [31]: 最高 [32]: 最低
+     * [33]: 振幅 [34]: 涨跌幅% [35]: 涨跌额
+     * [36]: 换手率% [37]: 市盈率
+     * [44]: 总市值 [45]: 流通市值
+     * [47]: 成交额(元)
+     */
+    
+    return {
+      name: parts[1],
+      code: parts[2],
+      current: parseFloat(parts[3]) || 0,
+      preclose: parseFloat(parts[4]) || 0,
+      open: parseFloat(parts[5]) || 0,
+      volume: parseInt(parts[6]) || 0, // 手
+      high: parseFloat(parts[31]) || 0,
+      low: parseFloat(parts[32]) || 0,
+      changePercent: parseFloat(parts[34]) || 0,
+      changeAmount: parseFloat(parts[35]) || 0,
+      turnoverRate: parseFloat(parts[36]) || 0,
+      peRatio: parseFloat(parts[37]) || 0,
+      amount: parseFloat(parts[47]) || 0, // 成交额
+      buy1: parseFloat(parts[9]) || 0,
+      buy1Vol: parseInt(parts[10]) || 0,
+      sell1: parseFloat(parts[19]) || 0,
+      sell1Vol: parseInt(parts[20]) || 0,
+      timestamp: new Date().getTime()
+    };
+  } catch(err) {
+    console.warn('[实时行情] 获取失败:', err.message);
+    return null;
+  }
+}
+
+/* 渲染实时行情数据 */
+function renderRealtimeInfo(quote) {
+  if (!quote) return;
+  
+  var infoDiv = document.getElementById('realtime-info');
+  if (!infoDiv) return;
+  
+  infoDiv.style.display = 'grid';
+  
+  // 辅助函数：格式化数字
+  function fmt(num, decimals) {
+    if (num === undefined || num === null || isNaN(num)) return '--';
+    return num.toFixed(decimals || 2);
+  }
+  
+  function fmtVolume(vol) {
+    if (!vol || vol === 0) return '--';
+    if (vol >= 100000000) return (vol / 100000000).toFixed(2) + '亿';
+    if (vol >= 10000) return (vol / 10000).toFixed(2) + '万';
+    return vol.toString();
+  }
+  
+  function fmtAmount(amount) {
+    if (!amount || amount === 0) return '--';
+    if (amount >= 100000000) return (amount / 100000000).toFixed(2) + '亿';
+    if (amount >= 10000) return (amount / 10000).toFixed(2) + '万';
+    return amount.toFixed(0);
+  }
+  
+  document.getElementById('rt-open').textContent = fmt(quote.open);
+  document.getElementById('rt-high').textContent = fmt(quote.high);
+  document.getElementById('rt-low').textContent = fmt(quote.low);
+  document.getElementById('rt-preclose').textContent = fmt(quote.preclose);
+  document.getElementById('rt-volume').textContent = fmtVolume(quote.volume);
+  document.getElementById('rt-amount').textContent = fmtAmount(quote.amount);
+  document.getElementById('rt-turnover').textContent = quote.turnoverRate ? fmt(quote.turnoverRate) + '%' : '--';
+  document.getElementById('rt-pe').textContent = quote.peRatio ? fmt(quote.peRatio) : '--';
+  
+  // 根据涨跌设置颜色
+  var highEl = document.getElementById('rt-high');
+  var lowEl = document.getElementById('rt-low');
+  if (quote.changePercent > 0) {
+    highEl.className = 'rt-value up';
+    lowEl.className = 'rt-value up';
+  } else if (quote.changePercent < 0) {
+    highEl.className = 'rt-value down';
+    lowEl.className = 'rt-value down';
+  } else {
+    highEl.className = 'rt-value';
+    lowEl.className = 'rt-value';
+  }
 }
 
 /* ===== 自选股管理（localStorage + 下拉框） ===== */
@@ -403,40 +613,56 @@ function manualRefresh() {
 }
 
 /* ===== 搜索 ===== */
-function searchStock() {
+async function searchStock() {
   var val = document.getElementById('search-input').value.trim();
   if (!val) return;
+  
   // 纯6位数字 - 直接加载
   if (/^\d{6}$/.test(val)) {
     document.getElementById('search-results').classList.remove('show');
     loadStock(val);
     return;
   }
-  // 名称搜索
-  var results = [];
-  var q = val.toLowerCase();
-  for (var c in STOCK_MAP) {
-    if (STOCK_MAP.hasOwnProperty(c)) {
-      var n = STOCK_MAP[c];
-      if (c.indexOf(val) === 0 || n.indexOf(val) !== -1 || n.toLowerCase().indexOf(q) !== -1) {
-        results.push({code: c, name: n});
-        if (results.length >= 10) break;
+  
+  // 显示加载中
+  var box = document.getElementById('search-results');
+  box.innerHTML = '<div class="search-item" style="color:#689;text-align:center;">搜索中...</div>';
+  box.classList.add('show');
+  
+  try {
+    // 优先使用腾讯财经API搜索
+    var results = await searchStockFromTencent(val);
+    
+    // 如果腾讯API没结果，回退到本地映射表
+    if (results.length === 0) {
+      results = [];
+      var q = val.toLowerCase();
+      for (var c in STOCK_MAP) {
+        if (STOCK_MAP.hasOwnProperty(c)) {
+          var n = STOCK_MAP[c];
+          if (c.indexOf(val) === 0 || n.indexOf(val) !== -1 || n.toLowerCase().indexOf(q) !== -1) {
+            results.push({code: c, name: n, market: c.charAt(0) === '6' ? 'sh' : 'sz'});
+            if (results.length >= 10) break;
+          }
+        }
       }
     }
-  }
-  var box = document.getElementById('search-results');
-  if (results.length) {
-    box.innerHTML = results.map(function(s){
-      return '<div class="search-item" onclick="selectCode(\'' + s.code + '\')">'
-        + '<span><span class="s-name">' + s.name + '</span><span class="s-code">' + s.code + '</span></span>'
-        + '<span style="color:#69f">›</span></div>';
-    }).join('');
-    box.classList.add('show');
-  } else {
-    box.innerHTML = '<div class="search-item" style="color:#689;text-align:center;">未找到匹配股票，请直接输入6位代码</div>';
-    box.classList.add('show');
+    
+    if (results.length) {
+      box.innerHTML = results.map(function(s){
+        return '<div class="search-item" onclick="selectCode(\'' + s.code + '\')">'
+          + '<span><span class="s-name">' + s.name + '</span><span class="s-code">' + s.code + '</span></span>'
+          + '<span style="color:#69f">›</span></div>';
+      }).join('');
+    } else {
+      box.innerHTML = '<div class="search-item" style="color:#689;text-align:center;">未找到匹配股票，请直接输入6位代码</div>';
+    }
+  } catch(err) {
+    console.error('[搜索错误]', err);
+    box.innerHTML = '<div class="search-item" style="color:#f04141;text-align:center;">搜索失败，请重试</div>';
   }
 }
+
 function selectCode(code) {
   document.getElementById('search-results').classList.remove('show');
   document.getElementById('search-input').value = code;
@@ -542,13 +768,25 @@ function makeSinaSymbol(code) {
   return 'sz' + code;
 }
 
+/* K线周期参数映射 */
+function getPeriodParams(period) {
+  switch(period) {
+    case 'day':   return { scale: 240, label: '日线', days: 180 };
+    case 'week':  return { scale: 600, label: '周线', days: 520 };  // 约10年周线
+    case 'month': return { scale: 720, label: '月线', days: 2400 }; // 约20年月线
+    case '60min': return { scale: 60,  label: '60分钟', days: 60 };
+    default:      return { scale: 240, label: '日线', days: 180 };
+  }
+}
+
 /* 根据页面协议选择 API 基础路径
  * 注意: 新浪财经 money.finance.sina.com.cn 支持 HTTPS
  * 但部分旧接口仅支持 HTTP，故做两级尝试
  */
-function buildApiUrls(symbol, days) {
+function buildApiUrls(symbol, days, period) {
+  var params = getPeriodParams(period);
   var path = '/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol='
-           + symbol + '&scale=240&ma=no&datalen=' + days;
+           + symbol + '&scale=' + params.scale + '&ma=no&datalen=' + days;
   var urls = [];
   if (ENV.isHttps) {
     // GitHub Pages 等 HTTPS 环境：优先 HTTPS
@@ -566,12 +804,13 @@ function buildApiUrls(symbol, days) {
 }
 
 /* 尝试依次调用候选 URL，任一成功即返回 */
-async function tryFetchStock(code, days) {
+async function tryFetchStock(code, days, period) {
   days = days || 180;
+  period = period || 'day';
   if (ENV.isFile) throw new Error('file:// 模式下无法加载远程数据');
 
   var symbol = makeSinaSymbol(code);
-  var urls = buildApiUrls(symbol, days);
+  var urls = buildApiUrls(symbol, days, period);
   var lastErr = null;
   for (var i = 0; i < urls.length; i++) {
     try {
@@ -596,6 +835,25 @@ async function tryFetchStock(code, days) {
     }
   }
   throw lastErr || new Error('所有数据源均不可用');
+}
+
+/* 获取K线数据 - 主入口，自动选择数据源 */
+async function fetchKlineData(code, days, period) {
+  days = days || 180;
+  period = period || 'day';
+  // file:// 模式直接用模拟数据
+  if (ENV.isFile) {
+    return generateMockKline(code, days);
+  }
+  try {
+    var data = await tryFetchStock(code, days, period);
+    ENV.isOnline = true;
+    return data;
+  } catch(err) {
+    console.warn('[数据源] 在线获取失败，回退到模拟数据:', err && err.message);
+    ENV.isOnline = false;
+    return generateMockKline(code, days);
+  }
 }
 
 /* ============================================================
@@ -644,24 +902,6 @@ function generateMockKline(code, days) {
   return result;
 }
 
-/* 获取K线数据 - 主入口，自动选择数据源 */
-async function fetchKlineData(code, days) {
-  days = days || 180;
-  // file:// 模式直接用模拟数据
-  if (ENV.isFile) {
-    return generateMockKline(code, days);
-  }
-  try {
-    var data = await tryFetchStock(code, days);
-    ENV.isOnline = true;
-    return data;
-  } catch(err) {
-    console.warn('[数据源] 在线获取失败，回退到模拟数据:', err && err.message);
-    ENV.isOnline = false;
-    return generateMockKline(code, days);
-  }
-}
-
 /* ============================================================
  * 技术指标计算
  * ============================================================ */
@@ -703,22 +943,52 @@ function calcMACD(closes, fast, slow, signal) {
 function calcRSI(closes, period) {
   period = period || 14;
   var result = [];
-  var gains = [], losses = [];
-  for (var i = 0; i < closes.length; i++) {
-    if (i === 0) { result.push(null); gains.push(0); losses.push(0); continue; }
-    var diff = closes[i] - closes[i-1];
-    var g = diff > 0 ? diff : 0;
-    var l = diff < 0 ? -diff : 0;
-    gains.push(g);
-    losses.push(l);
-    if (i < period) { result.push(null); continue; }
-    var avgG = 0, avgL = 0;
-    for (var j = i - period + 1; j <= i; j++) { avgG += gains[j]; avgL += losses[j]; }
-    avgG /= period; avgL /= period;
-    if (avgL === 0) { result.push(100); continue; }
-    var rs = avgG / avgL;
+  
+  if (closes.length < period + 1) {
+    // 数据不足，返回null
+    for (var i = 0; i < closes.length; i++) result.push(null);
+    return result;
+  }
+  
+  // Wilder平滑算法（指数加权移动平均）
+  var avgGain = 0;
+  var avgLoss = 0;
+  
+  // 第一步：计算初始平均值（简单平均）
+  for (var i = 1; i <= period; i++) {
+    var change = closes[i] - closes[i-1];
+    if (change > 0) {
+      avgGain += change;
+    } else {
+      avgLoss += Math.abs(change);
+    }
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  
+  // 前period个值为null
+  for (var i = 0; i < period; i++) {
+    result.push(null);
+  }
+  
+  // 计算第一个RSI值
+  var rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  result.push(round2(100 - (100 / (1 + rs))));
+  
+  // 后续使用Wilder平滑
+  for (var i = period + 1; i < closes.length; i++) {
+    var change = closes[i] - closes[i-1];
+    var gain = change > 0 ? change : 0;
+    var loss = change < 0 ? Math.abs(change) : 0;
+    
+    // Wilder平滑公式: EMA = (前值 * (n-1) + 当前值) / n
+    avgGain = (avgGain * (period - 1) + gain) / period;
+    avgLoss = (avgLoss * (period - 1) + loss) / period;
+    
+    rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
     result.push(round2(100 - (100 / (1 + rs))));
   }
+  
   return result;
 }
 
@@ -728,10 +998,14 @@ function round3(v) { return Math.round(v * 1000) / 1000; }
 /* ============================================================
  * 主逻辑：加载股票数据并渲染
  * ============================================================ */
-async function loadStock(code) {
+async function loadStock(code, period) {
   if (!code || code.length !== 6) { alert('请输入6位股票代码'); return; }
+  
+  period = period || currentPeriod || 'day';
   currentCode = code;
   currentName = getStockName(code);
+  currentPeriod = period;
+  
   renderFavSelect();
   updateFavBtn();
 
@@ -745,8 +1019,23 @@ async function loadStock(code) {
   showRefreshHint();
 
   try {
-    // fetchKlineData 已根据环境返回合适的数据（新浪/模拟）
-    var raw = await fetchKlineData(code, 180);
+    // 并行获取K线数据和实时行情
+    var params = getPeriodParams(period);
+    var klinePromise = fetchKlineData(code, params.days, period);
+    var quotePromise = fetchRealtimeQuote(code);
+    
+    var results = await Promise.allSettled([klinePromise, quotePromise]);
+    
+    // 处理K线数据
+    var raw = results[0].status === 'fulfilled' ? results[0].value : [];
+    
+    // 处理实时行情
+    var quote = results[1].status === 'fulfilled' ? results[1].value : null;
+    if (quote) {
+      currentName = quote.name || currentName;
+      renderRealtimeInfo(quote);
+    }
+    
     // 解析数据 — raw 中的每项结构: { day, open, close, high, low, volume }
     var records = [];
     for (var i = 0; i < raw.length; i++) {
@@ -818,6 +1107,24 @@ async function loadStockSilent(code) {
   } catch(e) {}
 }
 
+/* K线周期切换 */
+function switchPeriod(period, btn) {
+  if (!currentCode) {
+    alert('请先搜索一只股票');
+    return;
+  }
+  
+  currentPeriod = period;
+  
+  // 更新按钮状态
+  var btns = document.querySelectorAll('.period-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  if (btn) btn.classList.add('active');
+  
+  // 重新加载数据
+  loadStock(currentCode, period);
+}
+
 function hideRefreshHint() {
   var hint = document.getElementById('refresh-hint');
   if (hint) hint.classList.remove('show');
@@ -831,6 +1138,64 @@ function updateInfoHeader() {
   pctEl.style.color = '#fff';
   pctEl.style.background = pct >= 0 ? '#f04141' : '#1abc9c';
   document.getElementById('info-price').textContent = round2(stockData.last.close);
+}
+
+/* ===== K线图 ===== */
+function renderKline() {
+  if (!stockData) return;
+  var records = stockData.records;
+}
+
+function doAutoRefresh() {
+  if (!currentCode) return;
+  showRefreshHint();
+  
+  // 如果是日线且在交易时间，同时刷新实时行情
+  if (currentPeriod === 'day' && isTradingTime()) {
+    fetchRealtimeQuote(currentCode).then(function(quote) {
+      if (quote) {
+        currentName = quote.name || currentName;
+        renderRealtimeInfo(quote);
+        updateInfoHeaderWithQuote(quote);
+      }
+    }).catch(function(err) {
+      console.warn('[自动刷新] 实时行情失败:', err.message);
+    });
+  }
+  
+  loadStockSilent(currentCode);
+}
+
+function manualRefresh() {
+  if (!currentCode) { alert('请先搜索一只股票'); return; }
+  showRefreshHint();
+  secondsLeft = REFRESH_INTERVAL;
+  
+  // 如果是日线，同时刷新实时行情
+  if (currentPeriod === 'day') {
+    fetchRealtimeQuote(currentCode).then(function(quote) {
+      if (quote) {
+        currentName = quote.name || currentName;
+        renderRealtimeInfo(quote);
+        updateInfoHeaderWithQuote(quote);
+      }
+    }).catch(function(err) {
+      console.warn('[手动刷新] 实时行情失败:', err.message);
+    });
+  }
+  
+  loadStock(currentCode, currentPeriod);
+}
+
+/* 使用实时行情数据更新头部信息 */
+function updateInfoHeaderWithQuote(quote) {
+  if (!quote) return;
+  var pctEl = document.getElementById('info-pct');
+  var pct = quote.changePercent;
+  pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+  pctEl.style.color = '#fff';
+  pctEl.style.background = pct >= 0 ? '#f04141' : '#1abc9c';
+  document.getElementById('info-price').textContent = quote.current.toFixed(2);
 }
 
 /* ===== K线图 ===== */
