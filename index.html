@@ -262,30 +262,46 @@ function getStockName(code) {
 async function searchStockFromTencent(keyword) {
   if (!keyword || keyword.length < 1) return [];
   
-  // 腾讯财经搜索API (JSONP)
-  var url = 'https://smartbox.gtimg.cn/s3/?v=2&q=' + encodeURIComponent(keyword) + '&t=all';
+  var apiUrl = 'https://smartbox.gtimg.cn/s3/?v=2&q=' + encodeURIComponent(keyword) + '&t=all';
   
   try {
-    var data = await jsonp(url, 8000);
-    if (!data || !data.v || !Array.isArray(data.v)) return [];
+    var text;
+    if (ENV.hasProxy) {
+      // 本地代理方式
+      var resp = await fetch('/proxy?url=' + encodeURIComponent(apiUrl), { cache: 'no-store' });
+      if (!resp.ok) return [];
+      text = await resp.text();
+    } else {
+      // 纯前端方式: <script> 标签加载, 腾讯返回 v_hint="..." 变量赋值
+      window.v_hint = undefined;
+      await loadScript(apiUrl, 8000);
+      text = window.v_hint || '';
+      if (typeof text !== 'string') text = String(text);
+    }
     
+    // 解析格式: v_hint="sh~600519~贵州茅台~gzmt~GP-A^sz~000858~五粮液~wly~GP-A^..."
+    var match = text.match(/"([^"]+)"/);
+    if (!match || !match[1]) return [];
+    
+    var entries = match[1].split('^');
     var results = [];
-    for (var i = 0; i < data.v.length && i < 15; i++) {
-      var item = data.v[i];
-      // item格式: ["sh600519", "贵州茅台", "gzmt", "gupiao"]
-      if (!item || !item[0] || !item[1]) continue;
+    for (var i = 0; i < entries.length && results.length < 15; i++) {
+      var fields = entries[i].split('~');
+      if (fields.length < 4) continue;
+      var code = fields[1];
+      var name = fields[2];
       
-      var fullCode = item[0]; // sh600519 或 sz000001
-      var name = item[1];
-      var code = fullCode.substring(2); // 提取6位代码
-      
-      // 只保留A股
       if (!/^\d{6}$/.test(code)) continue;
+      
+      // 解码Unicode转义
+      name = name.replace(/\\u([0-9a-fA-F]{4})/g, function(m, p1) {
+        return String.fromCharCode(parseInt(p1, 16));
+      });
       
       results.push({
         code: code,
         name: name,
-        market: fullCode.substring(0, 2) // sh 或 sz
+        market: fields[0]
       });
     }
     return results;
@@ -303,12 +319,23 @@ async function fetchRealtimeQuote(code) {
   var url = 'https://qt.gtimg.cn/q=' + symbol;
   
   try {
-    var data = await jsonp(url, 8000);
-    if (!data || typeof data !== 'string') return null;
+    var text;
+    if (ENV.hasProxy) {
+      // 本地代理方式
+      var resp = await fetch('/proxy?url=' + encodeURIComponent(url), { cache: 'no-store' });
+      if (!resp.ok) return null;
+      text = await resp.text();
+    } else {
+      // 纯前端方式: <script> 标签, 腾讯返回 v_sh600519="..." 变量赋值
+      window['v_' + symbol] = undefined;
+      await loadScript(url, 8000);
+      text = window['v_' + symbol] || '';
+      if (typeof text !== 'string') text = String(text);
+    }
     
     // 解析腾讯返回的数据格式
     // v_sh600519="1~贵州茅台~600519~1720.00~1700.00~1680.00~..."
-    var match = data.match(/"([^"]+)"/);
+    var match = text.match(/"([^"]+)"/);
     if (!match || !match[1]) return null;
     
     var parts = match[1].split('~');
@@ -674,27 +701,40 @@ document.addEventListener('click', function(e) {
 
 /* ============================================================
  * 环境检测 & 数据源管理
- *  - GitHub Pages / HTTPS: 使用 HTTPS 协议的 API
- *  - 本地 HTTP: 使用 HTTP 协议的 API（更稳定）
+ *  - 本地 server.py: 使用 /proxy 代理（最稳定）
+ *  - GitHub Pages / 纯静态: 使用前端直连（腾讯CORS + script标签）
  *  - file:// / 网络失败: 回退到程序化模拟数据
  * ============================================================ */
 var ENV = {
   isFile: false,
   isHttps: false,
   isHttp: false,
-  isOnline: true,  // 在线模式下优先真实数据
+  isOnline: true,
+  hasProxy: false,  // 本地 server.py 代理是否可用
 };
 (function detectEnv() {
   var proto = window.location.protocol;
   ENV.isFile  = (proto === 'file:');
   ENV.isHttps = (proto === 'https:');
   ENV.isHttp  = (proto === 'http:');
-  // 在 file:// 下 localStorage 可能受限，使用内存存储回退
   if (ENV.isFile) {
     try { localStorage.getItem('__probe__'); }
     catch(e) { /* ignore */ }
   }
 })();
+
+/* 异步检测本地代理是否可用 */
+async function detectProxy() {
+  if (ENV.isFile) { ENV.hasProxy = false; return false; }
+  try {
+    var resp = await fetch('/proxy?url=' + encodeURIComponent('https://qt.gtimg.cn/q=sh000001'), { cache: 'no-store' });
+    ENV.hasProxy = resp.ok;
+  } catch(e) {
+    ENV.hasProxy = false;
+  }
+  console.log('[环境检测] 本地代理:', ENV.hasProxy ? '可用' : '不可用');
+  return ENV.hasProxy;
+}
 
 function showEnvNotice(isDemo) {
   var box = document.getElementById('env-notice');
@@ -706,28 +746,28 @@ function showEnvNotice(isDemo) {
   if (ENV.isFile) {
     badge.textContent = '本地文件模式';
     badge.className = 'env-badge warn';
-    text.innerHTML = '<strong>file://</strong> 模式下浏览器安全策略会阻止外部数据加载，当前使用 <strong>内置模拟数据</strong> 展示功能。';
-    action.innerHTML = '建议部署到 GitHub Pages 或运行 <code>run.bat</code> 启动本地服务器';
+    text.innerHTML = '<strong>file://</strong> 模式下无法使用代理，当前使用 <strong>内置模拟数据</strong> 展示功能。';
+    action.innerHTML = '请运行 <code>run.bat</code> 启动本地服务器';
   } else if (isDemo) {
     badge.textContent = '演示模式';
     badge.className = 'env-badge warn';
-    text.innerHTML = '无法连接到新浪财经数据源（可能是网络/跨域/HTTPS 限制），当前使用 <strong>内置模拟数据</strong> 展示。';
-    action.innerHTML = '可尝试切换网络或检查浏览器控制台';
+    text.innerHTML = '无法连接到数据源（网络问题），当前使用 <strong>内置模拟数据</strong> 展示。';
+    action.innerHTML = '请检查网络连接';
   } else {
     // 正常在线模式 — 显示绿色提示后自动收起
     badge.textContent = '在线模式';
     badge.className = 'env-badge ok';
-    text.innerHTML = '数据源: <strong>新浪财经 JSONP</strong>';
+    var src = ENV.hasProxy ? '本地代理' : '直连(腾讯财经)';
+    text.innerHTML = '数据源: <strong>' + src + '</strong>';
     action.innerHTML = '';
     setTimeout(function(){ if (box) box.style.display = 'none'; }, 3500);
   }
 }
 
 /* ============================================================
- * JSONP 数据获取（新浪财经 API）
- * 在 HTTPS 页面下: 尝试 https -> 失败则回退模拟数据
- * 在 HTTP 页面下: 使用 http 协议
- * 在 file:// 下: 直接使用模拟数据
+ * 数据获取工具
+ * - jsonp(): 适用于支持 callback 参数的 API（新浪财经）
+ * - loadScript(): 适用于返回变量赋值的 API（腾讯财经）
  * ============================================================ */
 function jsonp(url, timeoutMs) {
   return new Promise(function(resolve, reject) {
@@ -761,6 +801,36 @@ function jsonp(url, timeoutMs) {
   });
 }
 
+/* 加载脚本并等待 onload（用于腾讯 API 返回变量赋值的场景） */
+function loadScript(url, timeoutMs) {
+  return new Promise(function(resolve, reject) {
+    timeoutMs = timeoutMs || 10000;
+    var script = document.createElement('script');
+    script.async = true;
+    script.charset = 'GBK';
+    var timer = setTimeout(function() {
+      cleanup();
+      reject(new Error('请求超时'));
+    }, timeoutMs);
+
+    function cleanup() {
+      clearTimeout(timer);
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onload = function() {
+      cleanup();
+      resolve();
+    };
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('网络错误或被阻止'));
+    };
+    script.src = url;
+    document.head.appendChild(script);
+  });
+}
+
 /* 构造新浪代码：6开头 -> shxxx，其他 -> szxxx */
 function makeSinaSymbol(code) {
   if (code.length !== 6) return code;
@@ -771,35 +841,41 @@ function makeSinaSymbol(code) {
 /* K线周期参数映射 */
 function getPeriodParams(period) {
   switch(period) {
-    case 'day':   return { scale: 240, label: '日线', days: 180 };
-    case 'week':  return { scale: 600, label: '周线', days: 520 };  // 约10年周线
-    case 'month': return { scale: 720, label: '月线', days: 2400 }; // 约20年月线
-    case '60min': return { scale: 60,  label: '60分钟', days: 60 };
-    default:      return { scale: 240, label: '日线', days: 180 };
+    case 'day':   return { scale: 240, label: '日线', days: 180, txType: 'day', txKey: 'qfqday' };
+    case 'week':  return { scale: 600, label: '周线', days: 520, txType: 'week', txKey: 'qfqweek' };
+    case 'month': return { scale: 720, label: '月线', days: 2400, txType: 'month', txKey: 'qfqmonth' };
+    case '60min': return { scale: 60,  label: '60分钟', days: 60, txType: 'm60', txKey: 'm60' };
+    default:      return { scale: 240, label: '日线', days: 180, txType: 'day', txKey: 'qfqday' };
   }
 }
 
-/* 根据页面协议选择 API 基础路径
- * 注意: 新浪财经 money.finance.sina.com.cn 支持 HTTPS
- * 但部分旧接口仅支持 HTTP，故做两级尝试
- */
+/* 构建K线API URL列表（自动适配环境） */
 function buildApiUrls(symbol, days, period) {
   var params = getPeriodParams(period);
-  var path = '/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol='
-           + symbol + '&scale=' + params.scale + '&ma=no&datalen=' + days;
   var urls = [];
-  if (ENV.isHttps) {
-    // GitHub Pages 等 HTTPS 环境：优先 HTTPS
-    urls.push('https://money.finance.sina.com.cn' + path);
-    // 腾讯财经备用（如支持）
-    urls.push('https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=' +
-              (symbol.indexOf('sh') === 0 ? '1' : '0') + '.' +
-              symbol.substring(2) + ',,,,' + days + ',qfq');
-  } else if (ENV.isHttp) {
-    urls.push('http://money.finance.sina.com.cn' + path);
+
+  // 新浪K线 (仅代理模式可用, 无CORS)
+  var sinaUrl = 'https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol='
+           + symbol + '&scale=' + params.scale + '&ma=no&datalen=' + days;
+
+  // 腾讯K线 — 日/周/月用 fqkline 接口
+  var tencentUrl;
+  if (period === '60min') {
+    // 60分钟用不同接口
+    tencentUrl = 'https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=' + symbol + ',m60,,' + days;
   } else {
-    // file://: 不尝试远程，直接返回空数组由调用方处理
+    tencentUrl = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=' + symbol + ',' + params.txType + ',,,' + days + ',qfq';
   }
+
+  if (ENV.hasProxy) {
+    // 本地代理: 新浪 + 腾讯
+    urls.push({ url: '/proxy?url=' + encodeURIComponent(sinaUrl), mode: 'proxy', src: 'sina' });
+    urls.push({ url: '/proxy?url=' + encodeURIComponent(tencentUrl), mode: 'proxy', src: 'tencent' });
+  } else {
+    // 纯前端: 腾讯CORS直连 (新浪无CORS, 无法使用)
+    urls.push({ url: tencentUrl, mode: 'cors', src: 'tencent' });
+  }
+
   return urls;
 }
 
@@ -810,30 +886,85 @@ async function tryFetchStock(code, days, period) {
   if (ENV.isFile) throw new Error('file:// 模式下无法加载远程数据');
 
   var symbol = makeSinaSymbol(code);
-  var urls = buildApiUrls(symbol, days, period);
+  var urlList = buildApiUrls(symbol, days, period);
+
+  console.log('[API请求] 股票代码:', code, '符号:', symbol, '周期:', period, '天数:', days);
+  console.log('[API请求] 尝试URL数:', urlList.length, '代理模式:', ENV.hasProxy);
+
   var lastErr = null;
-  for (var i = 0; i < urls.length; i++) {
+  var params = getPeriodParams(period);
+  for (var i = 0; i < urlList.length; i++) {
+    var item = urlList[i];
+    var url = item.url;
+    var mode = item.mode;
+    var src = item.src;
+
     try {
-      var raw = await jsonp(urls[i], 12000);
+      console.log('[API请求] 尝试第', i+1, '个URL (模式:', mode, '来源:', src + ')');
+
+      var raw;
+      if (mode === 'proxy') {
+        // 通过本地代理
+        var resp = await fetch(url, { cache: 'no-store' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var text = await resp.text();
+        try { raw = JSON.parse(text); }
+        catch(e) { raw = text; }
+      } else if (mode === 'cors') {
+        // 直接 fetch (腾讯K线API支持 CORS *)
+        var resp2 = await fetch(url, { cache: 'no-store' });
+        if (!resp2.ok) throw new Error('HTTP ' + resp2.status);
+        raw = await resp2.json();
+      }
+
+      console.log('[API响应] 原始数据类型:', typeof raw);
+
       if (typeof raw === 'string') {
-        try { raw = JSON.parse(raw); } catch(e) { raw = null; }
-      }
-      if (Array.isArray(raw) && raw.length > 0 && raw[0] && raw[0].day) {
-        return raw;
-      }
-      // 腾讯接口返回格式不一样
-      if (raw && raw.data) {
-        var keys = Object.keys(raw.data);
-        if (keys.length && raw.data[keys[0]] && raw.data[keys[0]].qfqday) {
-          return raw.data[keys[0]].qfqday.map(function(k) {
-            return { day: k[0], open: k[1], high: k[3], low: k[4], close: k[2], volume: k[5] };
-          });
+        try {
+          raw = JSON.parse(raw);
+          console.log('[API响应] JSON解析成功, 数组长度:', Array.isArray(raw) ? raw.length : 'N/A');
+        } catch(e) {
+          console.warn('[API响应] JSON解析失败:', e.message);
+          raw = null;
         }
       }
+
+      // 新浪格式: [{day, open, close, high, low, volume}, ...]
+      if (Array.isArray(raw) && raw.length > 0 && raw[0] && raw[0].day) {
+        console.log('[API响应] ✓ 新浪数据获取成功, 记录数:', raw.length);
+        return raw;
+      }
+
+      // 腾讯格式: {data: {sh600519: {qfqday/qfqweek/qfqmonth/m60: [[date, open, close, high, low, volume], ...]}}}
+      if (raw && raw.data) {
+        var keys = Object.keys(raw.data);
+        if (keys.length) {
+          var stockData = raw.data[keys[0]];
+          var dayData = stockData[params.txKey] || stockData.qfqday || stockData.day;
+          if (dayData && dayData.length) {
+            console.log('[API响应] ✓ 腾讯数据获取成功, 记录数:', dayData.length, 'key:', params.txKey);
+            return dayData.map(function(k) {
+              // 腾讯格式: [date, open, close, high, low, volume, ...]
+              // 60min的date格式: 202606291130 -> 2026-06-29 11:30
+              var day = String(k[0]);
+              if (day.length === 12) {
+                day = day.substring(0,4) + '-' + day.substring(4,6) + '-' + day.substring(6,8)
+                    + ' ' + day.substring(8,10) + ':' + day.substring(10,12);
+              }
+              return { day: day, open: k[1], high: k[3], low: k[4], close: k[2], volume: k[5] };
+            });
+          }
+        }
+      }
+
+      console.warn('[API响应] ✗ 数据格式不符合预期');
     } catch(err) {
+      console.error('[API错误] 第', i+1, '个URL失败:', err.message);
       lastErr = err;
     }
   }
+
+  console.error('[API错误] 所有数据源均失败');
   throw lastErr || new Error('所有数据源均不可用');
 }
 
@@ -1412,8 +1543,10 @@ function renderInfo() {
 }
 
 /* ===== 默认加载 ===== */
-window.onload = function() {
+window.onload = async function() {
   renderFavSelect();
+  // 先检测代理是否可用, 再加载数据
+  await detectProxy();
   // 预加载第一只自选股
   var favs = getFavs();
   if (favs.length > 0) loadStock(favs[0].code);
