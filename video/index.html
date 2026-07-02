@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频去水印工具</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #1a1a2e; color: #e0e0e0; min-height: 100vh;
+}
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+/* Header */
+header {
+  text-align: center; padding: 12px 0; margin-bottom: 12px;
+}
+header h1 { font-size: 22px; color: #fff; }
+
+/* Main area */
+.main-area {
+  display: grid; grid-template-columns: 1fr 280px; gap: 20px;
+}
+@media (max-width: 800px) {
+  .main-area { grid-template-columns: 1fr; }
+}
+
+/* Video section */
+.video-section { position: relative; }
+.video-container {
+  background: #0f0f1a; border: 2px dashed #444; border-radius: 8px;
+  min-height: 400px; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: auto; cursor: crosshair;
+}
+.video-container.has-video { border-style: solid; border-color: #333; }
+.video-container.dragover { border-color: #3498db; background: #0f1a2e; }
+
+.upload-prompt {
+  text-align: center; color: #666; padding: 40px;
+}
+.upload-prompt .icon { font-size: 48px; margin-bottom: 12px; }
+.upload-prompt p { margin: 4px 0; }
+.upload-prompt .hint { font-size: 12px; color: #555; }
+
+#videoCanvas {
+  max-width: 100%; max-height: 500px; display: block;
+}
+
+/* Zoom controls */
+.zoom-controls {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; padding: 0 4px;
+}
+.zoom-controls .label { font-size: 12px; color: #888; white-space: nowrap; }
+.zoom-controls input[type=range] { flex: 1; }
+.zoom-controls .val { font-size: 12px; color: #aaa; min-width: 36px; text-align: right; }
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex; gap: 6px; margin-bottom: 10px;
+}
+.mode-btn {
+  flex: 1; padding: 8px 6px; border: 1px solid #555; border-radius: 6px;
+  background: transparent; color: #aaa; font-size: 12px; cursor: pointer;
+  text-align: center; transition: all 0.2s;
+}
+.mode-btn.active {
+  border-color: #3498db; background: rgba(52, 152, 219, 0.15); color: #fff;
+}
+.mode-btn:hover { border-color: #888; }
+
+/* Brush controls */
+.brush-controls {
+  display: none; margin-top: 8px;
+}
+.brush-controls.visible { display: block; }
+.brush-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+}
+.brush-row .label { font-size: 11px; color: #888; min-width: 32px; }
+.brush-row input[type=range] { flex: 1; }
+.brush-row .val { font-size: 11px; color: #aaa; min-width: 28px; text-align: right; }
+
+/* Frame slider */
+.frame-nav {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; padding: 0 4px;
+}
+.frame-nav button {
+  width: 36px; height: 36px; border: none; border-radius: 6px;
+  background: #2a2a3e; color: #ccc; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.frame-nav button:hover { background: #3a3a5e; }
+.frame-nav input[type=range] { flex: 1; accent-color: #3498db; }
+.frame-nav .frame-info {
+  font-size: 12px; color: #888; min-width: 100px; text-align: center;
+}
+
+/* Right panel */
+.panel { display: flex; flex-direction: column; gap: 16px; }
+.card {
+  background: #2a2a3e; border-radius: 8px; padding: 16px;
+  border: 1px solid #333;
+}
+.card h3 {
+  font-size: 14px; color: #aaa; margin-bottom: 10px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.card .info { font-size: 13px; color: #ccc; line-height: 1.6; }
+.card .info .label { color: #888; }
+
+/* Buttons */
+.btn {
+  display: block; width: 100%; padding: 12px; border: none; border-radius: 6px;
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  text-align: center;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: #3498db; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #2980b9; }
+.btn-success { background: #2ecc71; color: #fff; }
+.btn-success:hover:not(:disabled) { background: #27ae60; }
+.btn-danger { background: #e74c3c; color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #c0392b; }
+.btn-outline {
+  background: transparent; color: #aaa; border: 1px solid #555;
+}
+.btn-outline:hover:not(:disabled) { border-color: #888; color: #fff; }
+
+/* Progress */
+.progress-bar {
+  width: 100%; height: 6px; background: #333; border-radius: 3px;
+  overflow: hidden; margin: 8px 0;
+}
+.progress-bar .fill {
+  height: 100%; background: #2ecc71; border-radius: 3px;
+  transition: width 0.3s; width: 0%;
+}
+.progress-text { font-size: 12px; color: #888; text-align: center; }
+
+/* Hidden */
+.hidden { display: none !important; }
+
+/* Toast notification */
+.toast {
+  position: fixed; bottom: 20px; right: 20px; padding: 12px 20px;
+  background: #2ecc71; color: #fff; border-radius: 6px;
+  font-size: 14px; z-index: 1000; transform: translateY(100px);
+  opacity: 0; transition: all 0.3s;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.error { background: #e74c3c; }
+
+/* 顶部返回首页条 */
+.top-back-bar {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 10px 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.top-back-bar a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #e0e0e0;
+  text-decoration: none;
+  font-size: 13px;
+  border-radius: 16px;
+  transition: all 0.2s;
+}
+.top-back-bar a:hover {
+  background: rgba(52,152,219,0.25);
+  border-color: #3498db;
+  color: #fff;
+}
+</style>
+</head>
+<body>
+
+<div class="top-back-bar">
+  <a href="../index.html" title="返回首页">← 返回首页</a>
+</div>
+
+<div class="container">
+  <header>
+    <h1>视频去水印</h1>
+  </header>
+
+  <div class="main-area">
+    <!-- Video Section -->
+    <div class="video-section">
+      <div class="video-container" id="videoContainer">
+        <div class="upload-prompt" id="uploadPrompt">
+          <div class="icon">&#128249;</div>
+          <p><strong>点击此处选择视频或拖拽到这里</strong></p>
+          <p class="hint">支持 MP4, WebM, AVI 格式</p>
+          <input type="file" id="fileInput" accept="video/*" style="display:none">
+        </div>
+        <canvas id="videoCanvas" class="hidden"></canvas>
+      </div>
+
+      <div class="frame-nav hidden" id="frameNav">
+        <button id="btnPrev" title="Previous frame">&#9664;</button>
+        <input type="range" id="frameSlider" min="0" max="0" value="0">
+        <button id="btnNext" title="Next frame">&#9654;</button>
+        <span class="frame-info" id="frameInfo">0 / 0</span>
+      </div>
+
+      <div class="zoom-controls hidden" id="zoomControls">
+        <span class="label">Zoom</span>
+        <input type="range" id="zoomSlider" min="100" max="400" value="100" step="10">
+        <span class="val" id="zoomValue">100%</span>
+      </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="panel">
+      <div class="card hidden" id="roiCard">
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="btnModeRect">矩形框选</button>
+          <button class="mode-btn" id="btnModeBrush">画笔涂抹</button>
+        </div>
+        <div class="brush-controls" id="brushControls">
+          <div class="brush-row">
+            <span class="label">笔刷</span>
+            <input type="range" id="brushSizeSlider" min="10" max="100" value="30">
+            <span class="val" id="brushSizeVal">30</span>
+          </div>
+        </div>
+        <button class="btn btn-outline" id="btnClearRoi" style="margin-top: 8px;">
+          清除选区
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="progress-bar hidden" id="processProgress">
+          <div class="fill"></div>
+        </div>
+        <div class="progress-text hidden" id="processProgressText"></div>
+        <button class="btn btn-success" id="btnProcess" disabled style="margin-top: 8px;">
+          开始处理
+        </button>
+        <button class="btn btn-danger hidden" id="btnCancel" style="margin-top: 8px;">
+          取消
+        </button>
+        <button class="btn btn-primary hidden" id="btnDownload" style="margin-top: 8px;">
+          保存视频
+        </button>
+        <p class="hidden" id="downloadHint" style="font-size: 11px; color: #f39c12; margin-top: 6px; text-align: center;">
+          QQ/微信浏览器请点右上角「···」选择「在浏览器打开」后下载
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- OpenCV.js -->
+<script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCvReady()"></script>
+
+<script>
+// ============================================================
+// App State
+// ============================================================
+const state = {
+  // OpenCV
+  cvReady: false,
+
+  // Video
+  video: null,             // HTMLVideoElement
+  videoFile: null,
+  videoWidth: 0,
+  videoHeight: 0,
+  fps: 30,
+  totalFrames: 0,
+  duration: 0,
+  currentFrame: 0,
+
+  // ROI (in video coordinates)
+  roi: null,               // { x, y, w, h }
+
+  // Selection mode
+  selectionMode: 'rect',   // 'rect' or 'brush'
+  brushSize: 30,           // brush radius in video pixels
+  brushMask: null,         // offscreen canvas for brush mask
+  brushCtx: null,          // brush mask canvas context
+
+  // Drawing state
+  isDrawing: false,
+  drawStart: null,
+  drawEnd: null,
+
+  // Processing
+  processing: false,
+  cancelRequested: false,
+
+  // Output
+  outputBlob: null,
+  outputFileName: '',
+  outputBlobUrl: '',
+
+  // Zoom
+  zoomLevel: 100,
+  baseDisplayWidth: 0,
+  baseDisplayHeight: 0,
+
+  // Canvas contexts
+  ctx: null,
+};
+
+// ============================================================
+// DOM Elements
+// ============================================================
+const $ = (id) => document.getElementById(id);
+const videoContainer = $('videoContainer');
+const videoCanvas = $('videoCanvas');
+const uploadPrompt = $('uploadPrompt');
+const fileInput = $('fileInput');
+const frameNav = $('frameNav');
+const frameSlider = $('frameSlider');
+const frameInfo = $('frameInfo');
+
+// ============================================================
+// Toast Notification
+// ============================================================
+function showToast(msg, isError = false) {
+  const toast = $('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => toast.className = 'toast', 3000);
+}
+
+// ============================================================
+// OpenCV.js Initialization
+// ============================================================
+function onOpenCvReady() {
+  if (typeof cv !== 'undefined' && cv.Mat) {
+    state.cvReady = true;
+    console.log('[OpenCV] Ready');
+    showToast('OpenCV 已就绪');
+    updateProcessButton();
+  } else {
+    // OpenCV.js may need a moment to fully initialize
+    setTimeout(onOpenCvReady, 200);
+  }
+}
+
+// ============================================================
+// Video Loading
+// ============================================================
+function loadVideo(file) {
+  if (!file || !file.type.startsWith('video/')) {
+    showToast('请选择有效的视频文件', true);
+    return;
+  }
+
+  state.videoFile = file;
+
+  // Create video element
+  if (state.video) {
+    state.video.pause();
+    URL.revokeObjectURL(state.video.src);
+  }
+
+  const video = document.createElement('video');
+  video.preload = 'auto';
+  video.muted = true;
+  video.src = URL.createObjectURL(file);
+
+  video.addEventListener('loadedmetadata', () => {
+    state.video = video;
+    state.videoWidth = video.videoWidth;
+    state.videoHeight = video.videoHeight;
+    state.duration = video.duration;
+    state.fps = 30; // estimate
+    state.totalFrames = Math.round(video.duration * state.fps);
+    state.currentFrame = 0;
+
+    // Setup canvases
+    setupCanvas();
+
+    // Show video UI
+    uploadPrompt.classList.add('hidden');
+    videoCanvas.classList.remove('hidden');
+    videoContainer.classList.add('has-video');
+    frameNav.classList.remove('hidden');
+    $('roiCard').classList.remove('hidden');
+
+    // Setup slider
+    frameSlider.max = state.totalFrames - 1;
+    frameSlider.value = 0;
+
+    // Draw first frame
+    seekToFrame(0);
+    showToast('视频已加载！请选择水印区域');
+  });
+
+  video.addEventListener('error', () => {
+    showToast('视频加载失败', true);
+  });
+}
+
+function setupCanvas() {
+  // Main canvas at video resolution
+  videoCanvas.width = state.videoWidth;
+  videoCanvas.height = state.videoHeight;
+  state.ctx = videoCanvas.getContext('2d');
+
+  // Brush mask canvas at video resolution (offscreen)
+  state.brushMask = document.createElement('canvas');
+  state.brushMask.width = state.videoWidth;
+  state.brushMask.height = state.videoHeight;
+  state.brushCtx = state.brushMask.getContext('2d');
+  state.brushCtx.fillStyle = '#ffffff'; // opaque white for mask
+
+  // Save base display dimensions (at 100% zoom)
+  const rect = videoCanvas.getBoundingClientRect();
+  state.baseDisplayWidth = rect.width;
+  state.baseDisplayHeight = rect.height;
+  state.zoomLevel = 100;
+
+  // Show zoom controls
+  $('zoomControls').classList.remove('hidden');
+}
+
+// ============================================================
+// Frame Navigation
+// ============================================================
+function seekToFrame(frameIdx) {
+  if (!state.video) return;
+  state.currentFrame = frameIdx;
+  const time = frameIdx / state.fps;
+  state.video.currentTime = Math.min(time, state.duration - 0.01);
+
+  state.video.addEventListener('seeked', function onSeeked() {
+    state.video.removeEventListener('seeked', onSeeked);
+    state.ctx.drawImage(state.video, 0, 0, state.videoWidth, state.videoHeight);
+    frameInfo.textContent = `${frameIdx + 1} / ${state.totalFrames}`;
+    drawRoiOverlay();
+  });
+}
+
+// ============================================================
+// ROI Drawing
+// ============================================================
+function getCanvasCoords(e) {
+  const rect = videoCanvas.getBoundingClientRect();
+  const scaleX = state.videoWidth / rect.width;
+  const scaleY = state.videoHeight / rect.height;
+  return {
+    x: Math.round((e.clientX - rect.left) * scaleX),
+    y: Math.round((e.clientY - rect.top) * scaleY),
+  };
+}
+
+function paintBrush(x, y) {
+  if (!state.brushCtx) return;
+  const r = state.brushSize;
+  state.brushCtx.beginPath();
+  state.brushCtx.arc(x, y, r, 0, Math.PI * 2);
+  state.brushCtx.fill();
+}
+
+videoCanvas.addEventListener('mousedown', (e) => {
+  if (!state.video) return;
+  state.isDrawing = true;
+  const pos = getCanvasCoords(e);
+
+  if (state.selectionMode === 'brush') {
+    paintBrush(pos.x, pos.y);
+    drawRoiOverlay();
+  } else {
+    state.drawStart = pos;
+    state.drawEnd = pos;
+    state.roi = null;
+    drawRoiOverlay();
+  }
+});
+
+videoCanvas.addEventListener('mousemove', (e) => {
+  if (!state.isDrawing) return;
+  const pos = getCanvasCoords(e);
+
+  if (state.selectionMode === 'brush') {
+    paintBrush(pos.x, pos.y);
+    drawRoiOverlay();
+  } else {
+    state.drawEnd = pos;
+    drawRoiOverlay();
+  }
+});
+
+videoCanvas.addEventListener('mouseup', (e) => {
+  if (!state.isDrawing) return;
+  state.isDrawing = false;
+
+  if (state.selectionMode === 'brush') {
+    state.roi = null;
+    updateProcessButton();
+    drawRoiOverlay();
+    showToast('选区已标记，可以开始处理了');
+  } else {
+    state.drawEnd = getCanvasCoords(e);
+    const x1 = Math.min(state.drawStart.x, state.drawEnd.x);
+    const y1 = Math.min(state.drawStart.y, state.drawEnd.y);
+    const w = Math.abs(state.drawEnd.x - state.drawStart.x);
+    const h = Math.abs(state.drawEnd.y - state.drawStart.y);
+
+    if (w > 10 && h > 10) {
+      state.roi = { x: x1, y: y1, w, h };
+      console.log(`[ROI] x=${x1}, y=${y1}, w=${w}, h=${h}`);
+      updateProcessButton();
+      showToast('选区已确认，可以开始处理了');
+    }
+
+    state.drawStart = null;
+    state.drawEnd = null;
+    drawRoiOverlay();
+  }
+});
+
+// Touch support with pinch-to-zoom
+let lastTouchPos = null;
+let isPinching = false;
+let pinchStartDist = 0;
+let pinchStartZoom = 100;
+
+function getTouchDist(t1, t2) {
+  return Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+}
+
+videoCanvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 2) {
+    // Two fingers: start pinch zoom
+    isPinching = true;
+    state.isDrawing = false;
+    pinchStartDist = getTouchDist(e.touches[0], e.touches[1]);
+    pinchStartZoom = state.zoomLevel || 100;
+  } else if (e.touches.length === 1) {
+    // Single finger: draw ROI
+    const touch = e.touches[0];
+    lastTouchPos = { clientX: touch.clientX, clientY: touch.clientY };
+    videoCanvas.dispatchEvent(new MouseEvent('mousedown', { clientX: touch.clientX, clientY: touch.clientY }));
+  }
+});
+
+videoCanvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (isPinching && e.touches.length === 2) {
+    // Pinch zoom
+    const dist = getTouchDist(e.touches[0], e.touches[1]);
+    const ratio = dist / pinchStartDist;
+    const newZoom = Math.max(100, Math.min(400, Math.round(pinchStartZoom * ratio / 10) * 10));
+    if (newZoom !== (state.zoomLevel || 100)) {
+      state.zoomLevel = newZoom;
+      $('zoomSlider').value = newZoom;
+      $('zoomValue').textContent = newZoom + '%';
+      applyZoom(newZoom);
+    }
+  } else if (!isPinching && e.touches.length === 1) {
+    // Single finger: continue drawing
+    const touch = e.touches[0];
+    lastTouchPos = { clientX: touch.clientX, clientY: touch.clientY };
+    videoCanvas.dispatchEvent(new MouseEvent('mousemove', { clientX: touch.clientX, clientY: touch.clientY }));
+  }
+});
+
+videoCanvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (isPinching && e.touches.length < 2) {
+    isPinching = false;
+    return;
+  }
+  // Use saved touch position (touchend has no e.touches)
+  if (lastTouchPos) {
+    videoCanvas.dispatchEvent(new MouseEvent('mouseup', { clientX: lastTouchPos.clientX, clientY: lastTouchPos.clientY }));
+    lastTouchPos = null;
+  }
+});
+
+function drawRoiOverlay() {
+  if (!state.ctx) return;
+  const ctx = state.ctx;
+
+  // Redraw video frame first
+  if (state.video) {
+    ctx.drawImage(state.video, 0, 0, state.videoWidth, state.videoHeight);
+  }
+
+  // Draw brush mask overlay
+  if (state.selectionMode === 'brush' && state.brushMask) {
+    ctx.globalAlpha = 0.4;
+    ctx.drawImage(state.brushMask, 0, 0);
+    // Tint red using source-atop
+    ctx.globalCompositeOperation = 'source-atop';
+    ctx.fillStyle = 'rgba(255, 50, 50, 0.5)';
+    ctx.fillRect(0, 0, state.videoWidth, state.videoHeight);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
+  }
+
+  // Draw rectangle (using video coordinates directly)
+  const drawRect = (x, y, w, h) => {
+    ctx.fillStyle = 'rgba(255, 50, 50, 0.25)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#ff3333';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x, y, w, h);
+    // Corner markers
+    const cs = 20;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x, y + cs); ctx.lineTo(x, y); ctx.lineTo(x + cs, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w - cs, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cs); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y + h - cs); ctx.lineTo(x, y + h); ctx.lineTo(x + cs, y + h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w - cs, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cs); ctx.stroke();
+  };
+
+  if (state.isDrawing && state.drawStart && state.drawEnd) {
+    const x1 = Math.min(state.drawStart.x, state.drawEnd.x);
+    const y1 = Math.min(state.drawStart.y, state.drawEnd.y);
+    drawRect(x1, y1, Math.abs(state.drawEnd.x - state.drawStart.x), Math.abs(state.drawEnd.y - state.drawStart.y));
+  } else if (state.roi) {
+    drawRect(state.roi.x, state.roi.y, state.roi.w, state.roi.h);
+  }
+}
+
+function applyZoom(zoomPercent) {
+  const scale = zoomPercent / 100;
+  videoCanvas.style.maxWidth = (state.baseDisplayWidth * scale) + 'px';
+  videoCanvas.style.maxHeight = (state.baseDisplayHeight * scale) + 'px';
+}
+
+// Zoom slider
+$('zoomSlider').addEventListener('input', function() {
+  const val = parseInt(this.value);
+  $('zoomValue').textContent = val + '%';
+  state.zoomLevel = val;
+  applyZoom(val);
+});
+
+// ============================================================
+// Video Processing (Inpainting)
+// ============================================================
+async function processVideo() {
+  if (!state.cvReady || !hasSelection() || !state.video) return;
+
+  state.processing = true;
+  state.cancelRequested = false;
+
+  $('btnProcess').classList.add('hidden');
+  $('btnCancel').classList.remove('hidden');
+  $('processProgress').classList.remove('hidden');
+  $('processProgressText').classList.remove('hidden');
+
+  try {
+    // Create mask from ROI
+    const mask = createMask();
+
+    // Prepare output: use MediaRecorder with canvas stream
+    const outputCanvas = document.createElement('canvas');
+    outputCanvas.width = state.videoWidth;
+    outputCanvas.height = state.videoHeight;
+    const outCtx = outputCanvas.getContext('2d');
+
+    // Determine output format
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9'
+      : 'video/webm';
+    const ext = mimeType.includes('webm') ? 'webm' : 'mp4';
+
+    const stream = outputCanvas.captureStream(state.fps);
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8000000 });
+    const chunks = [];
+
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+    const recordingDone = new Promise((resolve) => {
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        resolve(blob);
+      };
+    });
+
+    recorder.start();
+
+    // Process frame by frame
+    const totalFrames = state.totalFrames;
+    for (let i = 0; i < totalFrames; i++) {
+      if (state.cancelRequested) {
+        recorder.stop();
+        showToast('已取消处理');
+        break;
+      }
+
+      // Seek to frame
+      await seekToFrameAsync(i);
+
+      // Get frame data
+      const frameData = state.ctx.getImageData(0, 0, state.videoWidth, state.videoHeight);
+
+      // Run inpainting
+      const result = await runInpainting(frameData, mask);
+
+      // Draw result to output canvas
+      outCtx.putImageData(result, 0, 0);
+
+      // Also show on main canvas
+      state.ctx.putImageData(result, 0, 0);
+
+      // Update progress
+      const pct = Math.round(((i + 1) / totalFrames) * 100);
+      $('processProgress').querySelector('.fill').style.width = pct + '%';
+      $('processProgressText').textContent = `Frame ${i + 1} / ${totalFrames} (${pct}%)`;
+    }
+
+    if (!state.cancelRequested) {
+      // Small delay to ensure last frame is captured
+      await new Promise(r => setTimeout(r, 200));
+      recorder.stop();
+
+      const blob = await recordingDone;
+
+      // Store blob for download
+      const baseName = state.videoFile.name.replace(/\.[^.]+$/, '');
+      state.outputBlob = blob;
+      state.outputFileName = `${baseName}_clean.${ext}`;
+      state.outputBlobUrl = URL.createObjectURL(blob);
+
+      // Show download button and hint
+      $('btnDownload').classList.remove('hidden');
+      // Detect QQ/WeChat browser
+      const ua = navigator.userAgent.toLowerCase();
+      if (ua.includes('mqqbrowser') || ua.includes('wechat') || ua.includes('micromessenger')) {
+        $('downloadHint').classList.remove('hidden');
+      }
+
+      showToast('处理完成！点击"保存视频"下载');
+    }
+
+  } catch (err) {
+    console.error('[Process] Error:', err);
+    showToast('处理出错: ' + err.message, true);
+  }
+
+  state.processing = false;
+  $('btnProcess').classList.remove('hidden');
+  $('btnCancel').classList.add('hidden');
+  updateProcessButton();
+}
+
+function createMask() {
+  const h = state.videoHeight;
+  const w = state.videoWidth;
+  const mask = new Uint8Array(h * w); // 0 = keep, 255 = inpaint
+
+  if (state.selectionMode === 'brush' && state.brushCtx) {
+    // Read brush mask canvas pixels
+    const imgData = state.brushCtx.getImageData(0, 0, w, h);
+    for (let i = 0; i < h * w; i++) {
+      mask[i] = imgData.data[i * 4 + 3] > 128 ? 255 : 0; // alpha channel
+    }
+    return mask;
+  }
+
+  if (!state.roi) return mask;
+
+  const { x, y, w: rw, h: rh } = state.roi;
+  for (let row = y; row < y + rh && row < h; row++) {
+    for (let col = x; col < x + rw && col < w; col++) {
+      mask[row * w + col] = 255;
+    }
+  }
+  return mask;
+}
+
+function seekToFrameAsync(frameIdx) {
+  return new Promise((resolve) => {
+    const time = frameIdx / state.fps;
+    state.video.currentTime = Math.min(time, state.duration - 0.01);
+    state.video.addEventListener('seeked', function onSeeked() {
+      state.video.removeEventListener('seeked', onSeeked);
+      state.ctx.drawImage(state.video, 0, 0, state.videoWidth, state.videoHeight);
+      resolve();
+    });
+  });
+}
+
+async function runInpainting(frameData, mask) {
+  // Use OpenCV.js inpainting
+  const w = state.videoWidth;
+  const h = state.videoHeight;
+
+  // Create source image Mat from frame ImageData
+  const srcMat = cv.matFromImageData(frameData);
+  // Convert RGBA to RGB (inpaint works on 3-channel)
+  const rgbMat = new cv.Mat();
+  cv.cvtColor(srcMat, rgbMat, cv.COLOR_RGBA2RGB);
+
+  // Create mask Mat from mask array (Uint8Array: 0=keep, 255=inpaint)
+  const maskMat = cv.matFromArray(h, w, cv.CV_8UC1, mask);
+
+  // Dilate mask slightly for better edge blending
+  const kernel = cv.Mat.ones(3, 3, cv.CV_8U);
+  const dilatedMask = new cv.Mat();
+  cv.dilate(maskMat, dilatedMask, kernel);
+
+  // Run inpainting (Telea method, radius 3)
+  const resultMat = new cv.Mat();
+  cv.inpaint(rgbMat, dilatedMask, resultMat, 3, cv.INPAINT_TELEA);
+
+  // Convert result back to ImageData (RGB -> RGBA)
+  const rgbaResult = new cv.Mat();
+  cv.cvtColor(resultMat, rgbaResult, cv.COLOR_RGB2RGBA);
+  const resultData = new ImageData(new Uint8ClampedArray(rgbaResult.data), w, h);
+
+  // Clean up OpenCV Mats
+  srcMat.delete();
+  rgbMat.delete();
+  maskMat.delete();
+  kernel.delete();
+  dilatedMask.delete();
+  resultMat.delete();
+  rgbaResult.delete();
+
+  return resultData;
+}
+
+function hasSelection() {
+  if (state.selectionMode === 'brush') {
+    // Check if brush mask has any painted pixels
+    if (!state.brushCtx) return false;
+    const data = state.brushCtx.getImageData(0, 0, state.videoWidth, state.videoHeight).data;
+    for (let i = 3; i < data.length; i += 400) { // sample every 100th pixel for speed
+      if (data[i] > 128) return true;
+    }
+    return false;
+  }
+  return !!state.roi;
+}
+
+function updateProcessButton() {
+  $('btnProcess').disabled = !(state.cvReady && state.video && hasSelection());
+}
+
+// Redraw canvas when scrolling back into view (fixes black canvas on mobile)
+let scrollRedrawTimer = null;
+window.addEventListener('scroll', () => {
+  if (scrollRedrawTimer) clearTimeout(scrollRedrawTimer);
+  scrollRedrawTimer = setTimeout(() => {
+    if (state.video && !state.processing) drawRoiOverlay();
+  }, 100);
+});
+window.addEventListener('resize', () => {
+  if (state.video && !state.processing) drawRoiOverlay();
+});
+
+// ============================================================
+// Event Listeners
+// ============================================================
+
+// File input
+uploadPrompt.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files[0]) loadVideo(e.target.files[0]);
+});
+
+// Drag and drop
+videoContainer.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  videoContainer.classList.add('dragover');
+});
+videoContainer.addEventListener('dragleave', () => {
+  videoContainer.classList.remove('dragover');
+});
+videoContainer.addEventListener('drop', (e) => {
+  e.preventDefault();
+  videoContainer.classList.remove('dragover');
+  if (e.dataTransfer.files[0]) loadVideo(e.dataTransfer.files[0]);
+});
+
+// Frame navigation
+frameSlider.addEventListener('input', () => {
+  seekToFrame(parseInt(frameSlider.value));
+});
+$('btnPrev').addEventListener('click', () => {
+  if (state.currentFrame > 0) {
+    frameSlider.value = state.currentFrame - 1;
+    seekToFrame(state.currentFrame - 1);
+  }
+});
+$('btnNext').addEventListener('click', () => {
+  if (state.currentFrame < state.totalFrames - 1) {
+    frameSlider.value = state.currentFrame + 1;
+    seekToFrame(state.currentFrame + 1);
+  }
+});
+
+// Mode toggle
+$('btnModeRect').addEventListener('click', () => {
+  state.selectionMode = 'rect';
+  $('btnModeRect').classList.add('active');
+  $('btnModeBrush').classList.remove('active');
+  $('brushControls').classList.remove('visible');
+  videoCanvas.style.cursor = 'crosshair';
+  drawRoiOverlay();
+});
+
+$('btnModeBrush').addEventListener('click', () => {
+  state.selectionMode = 'brush';
+  $('btnModeBrush').classList.add('active');
+  $('btnModeRect').classList.remove('active');
+  $('brushControls').classList.add('visible');
+  videoCanvas.style.cursor = 'pointer';
+  drawRoiOverlay();
+});
+
+// Brush size slider
+$('brushSizeSlider').addEventListener('input', function() {
+  state.brushSize = parseInt(this.value);
+  $('brushSizeVal').textContent = this.value;
+});
+
+// Clear ROI
+$('btnClearRoi').addEventListener('click', () => {
+  state.roi = null;
+  // Clear brush mask
+  if (state.brushCtx) {
+    state.brushCtx.clearRect(0, 0, state.videoWidth, state.videoHeight);
+  }
+  drawRoiOverlay();
+  updateProcessButton();
+});
+
+// Process
+$('btnProcess').addEventListener('click', processVideo);
+$('btnCancel').addEventListener('click', () => {
+  state.cancelRequested = true;
+  $('btnCancel').disabled = true;
+});
+
+// Download with fallback for QQ/WeChat browser
+$('btnDownload').addEventListener('click', () => {
+  if (!state.outputBlobUrl) return;
+
+  // Try standard <a download> first
+  try {
+    const a = document.createElement('a');
+    a.href = state.outputBlobUrl;
+    a.download = state.outputFileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+
+    // Check if download actually started (some browsers silently ignore)
+    setTimeout(() => {
+      document.body.removeChild(a);
+    }, 1000);
+
+    // Show fallback hint after a moment
+    setTimeout(() => {
+      $('downloadHint').classList.remove('hidden');
+    }, 2000);
+  } catch (e) {
+    // Fallback: open video in new tab for long-press save
+    window.open(state.outputBlobUrl, '_blank');
+    $('downloadHint').classList.remove('hidden');
+  }
+});
+</script>
+</body>
+</html>
