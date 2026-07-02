@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>地图路线规划导航</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- ====== 左侧边栏 ====== -->
+        <div id="sidebar">
+            <!-- 手机端抽屉把手 -->
+            <div class="drawer-handle">
+                <div class="drawer-handle-bar"></div>
+            </div>
+
+            <div class="sidebar-header">
+                <a class="btn-back" href="../index.html" title="返回首页">← 返回首页</a>
+                <h1>🗺️ 路线规划导航</h1>
+                <div class="subtitle">基于高德地图 · 支持驾车/步行/骑行/公交</div>
+            </div>
+
+            <div class="sidebar-body">
+                <!-- Key 未配置警告 -->
+                <div id="no-key-warning" class="no-key-warning">
+                    <strong>⚠️ 高德地图 Key 未配置！</strong><br>
+                    请按以下步骤获取 Key：<br>
+                    1. 访问 <a href="https://console.amap.com/dev/key/app" target="_blank">高德开放平台</a> 注册登录<br>
+                    2. 创建应用 → 添加 Key → 服务平台选「Web端(JS API)」<br>
+                    3. 将 Key 写入 <code>index.html</code> 中的 <code>window.AMAP_KEY</code> 和高德地图 script 标签
+                </div>
+
+                <!-- 快捷城市 -->
+                <div class="quick-actions">
+                    <button class="quick-btn" data-city="北京">北京</button>
+                    <button class="quick-btn" data-city="上海">上海</button>
+                    <button class="quick-btn" data-city="广州">广州</button>
+                    <button class="quick-btn" data-city="深圳">深圳</button>
+                    <button class="quick-btn" data-city="成都">成都</button>
+                    <button class="quick-btn" data-city="杭州">杭州</button>
+                </div>
+
+                <!-- 起点 -->
+                <div class="input-group">
+                    <label><span class="dot origin"></span>起点</label>
+                    <div class="input-row">
+                        <input
+                            type="text"
+                            id="origin-input"
+                            placeholder="输入起点地名或点击地图选点"
+                            autocomplete="off"
+                        >
+                        <button class="btn-icon active" id="origin-btn" title="地图点选起点">📍</button>
+                    </div>
+                </div>
+
+                <!-- 终点 -->
+                <div class="input-group">
+                    <label><span class="dot dest"></span>终点</label>
+                    <div class="input-row">
+                        <input
+                            type="text"
+                            id="dest-input"
+                            placeholder="输入终点地名或点击地图选点"
+                            autocomplete="off"
+                        >
+                        <button class="btn-icon" id="dest-btn" title="地图点选终点">📍</button>
+                    </div>
+                </div>
+
+                <!-- 交换按钮 -->
+                <div style="text-align: center; margin-bottom: 10px;">
+                    <button class="btn-icon" id="swap-btn" title="交换起终点" style="width: 32px; height: 32px; font-size: 14px;">⇅</button>
+                </div>
+
+                <!-- 出行方式 -->
+                <div class="mode-selector">
+                    <button class="mode-btn active" data-mode="driving">🚗 驾车</button>
+                    <button class="mode-btn" data-mode="walking">🚶 步行</button>
+                    <button class="mode-btn" data-mode="riding">🚲 骑行</button>
+                    <button class="mode-btn" data-mode="transit">🚌 公交</button>
+                </div>
+
+                <!-- 路线选项（仅驾车显示） -->
+                <div class="route-options">
+                    <label>
+                        <input type="checkbox" id="avoid-tolls"> 免收费路线
+                    </label>
+                </div>
+
+                <!-- 搜索按钮 -->
+                <button class="btn-search" id="search-btn">规划路线</button>
+
+                <div class="divider"></div>
+
+                <!-- 路线结果 -->
+                <div id="route-panel" class="route-panel">
+                    <div class="route-summary">
+                        <div class="route-stat">
+                            <div class="value" id="route-distance">--</div>
+                            <div class="label">距离 (km)</div>
+                        </div>
+                        <div class="route-stat">
+                            <div class="value" id="route-time">--</div>
+                            <div class="label">时间 (分钟)</div>
+                        </div>
+                        <div class="route-stat">
+                            <div class="value" id="route-cost">--</div>
+                            <div class="label">费用 (元)</div>
+                        </div>
+                    </div>
+                    <div class="route-taxi" id="taxi-info" style="display:none;"></div>
+
+                    <!-- 多方案切换 -->
+                    <div id="route-switch" style="display:none; justify-content:center; align-items:center; gap:12px; margin-bottom:12px;">
+                        <button class="quick-btn" id="prev-route">← 上一方案</button>
+                        <span id="route-label" style="font-size:12px;color:#999;">方案 1/1</span>
+                        <button class="quick-btn" id="next-route">下一方案 →</button>
+                    </div>
+
+                    <div class="route-steps" id="route-steps"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== 地图区域 ====== -->
+        <div id="map-container">
+            <div class="loading-overlay" id="loading-overlay">
+                <div class="spinner"></div>
+            </div>
+            <div class="click-hint" id="click-hint"></div>
+            <div class="map-overlay">
+                <button class="map-btn" id="locate-btn" title="定位到我的位置">📍</button>
+                <button class="map-btn" id="clear-btn" title="清除所有标记">🗑</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ① 先加载配置（混淆后的 Key + 动态加载 AMap SDK） -->
+    <script src="js/config.js"></script>
+    <!-- ② AMap SDK 由 config.js 动态注入，无需在此硬编码 Key -->
+    <script src="js/app.js"></script>
+</body>
+</html>
