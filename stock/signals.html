@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>买入卖出信号 - A股分析</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #0f1923; color: #e0e0e0; min-height: 100vh; }
+
+    /* ---- 顶部栏 ---- */
+    .header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #1a2733; border-bottom: 1px solid #2a3a4a; }
+    .header .btn-back { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid #3a4a5a; border-radius: 6px; background: #1a2733; color: #89a; font-size: 16px; text-decoration: none; flex-shrink: 0; }
+    .header .btn-back:active { background: #2a3a4a; color: #fff; }
+    .header h1 { font-size: 17px; font-weight: 600; color: #fff; flex: 1; }
+    .header .btn-refresh { padding: 8px 14px; border: none; border-radius: 6px; background: #2196F3; color: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
+    .header .btn-refresh:active { background: #1976D2; }
+    .header .btn-refresh:disabled { background: #2a3a4a; color: #556; cursor: not-allowed; }
+
+    /* ---- 股票来源切换 ---- */
+    .source-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #141e28; border-bottom: 1px solid #2a3a4a; font-size: 13px; }
+    .source-bar .label { color: #689; white-space: nowrap; }
+    .source-btn { padding: 5px 12px; border: 1px solid #3a4a5a; border-radius: 4px; background: none; color: #89a; font-size: 12px; cursor: pointer; }
+    .source-btn.active { background: #2196F3; color: #fff; border-color: #2196F3; }
+    .source-btn:active { background: #1a2733; }
+    .source-info { margin-left: auto; color: #689; font-size: 11px; }
+
+    /* ---- 加载进度 ---- */
+    .loading-section { padding: 40px 20px; text-align: center; }
+    .loading-section .spinner { width: 40px; height: 40px; border: 3px solid #1a2733; border-top-color: #4fc3f7; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-section .loading-text { color: #89a; font-size: 14px; margin-bottom: 16px; }
+    .progress-bar-wrap { max-width: 400px; margin: 0 auto; }
+    .progress-bar { height: 6px; background: #1a2733; border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #4fc3f7, #2196F3); border-radius: 3px; transition: width 0.3s; width: 0%; }
+    .progress-text { color: #689; font-size: 12px; margin-top: 8px; }
+
+    /* ---- 清单区 ---- */
+    .lists-container { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    @media (max-width: 700px) { .lists-container { grid-template-columns: 1fr; } }
+
+    .list-section { padding: 12px; }
+    .list-section.buy { border-right: 1px solid #1a2733; }
+    @media (max-width: 700px) { .list-section.buy { border-right: none; border-bottom: 1px solid #1a2733; } }
+
+    .list-title { display: flex; align-items: center; gap: 8px; padding: 8px 0 12px; font-size: 16px; font-weight: 700; }
+    .list-title .icon { font-size: 20px; }
+    .list-title.buy { color: #f04141; }
+    .list-title.sell { color: #1abc9c; }
+    .list-title .count { font-size: 12px; color: #689; font-weight: 400; }
+
+    .empty-hint { text-align: center; padding: 40px 20px; color: #556; font-size: 13px; }
+
+    /* ---- 股票卡片 ---- */
+    .stock-card { background: #15202b; border: 1px solid #1a2733; border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.2s, transform 0.15s; display: flex; gap: 10px; align-items: center; text-decoration: none; color: inherit; }
+    .stock-card:active { transform: scale(0.98); }
+    .stock-card:hover { border-color: #2a3a4a; }
+
+    .stock-card .score-badge { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; flex-shrink: 0; }
+    .stock-card.buy .score-badge { background: rgba(240,65,65,0.15); color: #f04141; border: 1px solid rgba(240,65,65,0.3); }
+    .stock-card.sell .score-badge { background: rgba(26,188,156,0.15); color: #1abc9c; border: 1px solid rgba(26,188,156,0.3); }
+
+    .stock-card .info { flex: 1; min-width: 0; }
+    .stock-card .name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .stock-card .name { font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .stock-card .code { font-size: 11px; color: #69f; }
+    .stock-card .price { font-size: 13px; font-weight: 600; margin-left: auto; }
+    .stock-card .price.up { color: #f04141; }
+    .stock-card .price.down { color: #1abc9c; }
+
+    .stock-card .signal-row { display: flex; flex-wrap: wrap; gap: 4px; }
+    .signal-tag { font-size: 10px; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+    .signal-tag.buy { background: rgba(240,65,65,0.12); color: #f04141; }
+    .signal-tag.sell { background: rgba(26,188,156,0.12); color: #1abc9c; }
+
+    /* ---- 迷你走势图 ---- */
+    .stock-card .sparkline { width: 60px; height: 32px; flex-shrink: 0; }
+    .stock-card .sparkline svg { display: block; }
+
+    /* ---- 底部 ---- */
+    .footer-info { padding: 16px 12px; text-align: center; color: #3a4a5a; font-size: 11px; line-height: 1.6; }
+    .footer-info a { color: #4fc3f7; text-decoration: none; }
+
+    /* ---- 环境提示 ---- */
+    .env-notice { background: #2a1a1a; color: #f5a623; padding: 10px 14px; font-size: 12px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #3a2a2a; }
+    .env-notice .env-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #f04141; color: #fff; flex-shrink: 0; }
+    .env-notice .env-badge.ok { background: #1abc9c; }
+    .env-notice .env-badge.warn { background: #f5a623; color: #000; }
+  </style>
+</head>
+<body>
+
+<div id="env-notice" class="env-notice" style="display:none;">
+  <span id="env-badge" class="env-badge">检测中</span>
+  <span id="env-text"></span>
+</div>
+
+<div class="header">
+  <a class="btn-back" href="index.html" title="返回A股分析">&larr;</a>
+  <h1>买入卖出信号</h1>
+  <button class="btn-refresh" id="analyze-btn" onclick="startAnalysis()">刷新分析</button>
+</div>
+
+<div class="source-bar">
+  <span class="label">分析范围:</span>
+  <button class="source-btn active" id="src-fav" onclick="switchSource('fav')">自选股</button>
+  <button class="source-btn" id="src-all" onclick="switchSource('all')">全部模板</button>
+  <span class="source-info" id="source-info"></span>
+</div>
+
+<div id="loading-section" class="loading-section" style="display:none;">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">正在分析股票...</div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-text" id="progress-text">0 / 0</div>
+  </div>
+</div>
+
+<div id="lists-container" class="lists-container" style="display:none;">
+  <div class="list-section buy">
+    <div class="list-title buy">
+      <span class="icon">&#x1F534;</span>
+      <span>最佳买入清单</span>
+      <span class="count" id="buy-count"></span>
+    </div>
+    <div id="buy-list"></div>
+  </div>
+  <div class="list-section sell">
+    <div class="list-title sell">
+      <span class="icon">&#x26AB;</span>
+      <span>最佳卖出清单</span>
+      <span class="count" id="sell-count"></span>
+    </div>
+    <div id="sell-list"></div>
+  </div>
+</div>
+
+<div id="empty-hint" class="empty-hint" style="display:none;">
+  暂无数据，请点击"刷新分析"开始
+</div>
+
+<div class="footer-info">
+  信号基于MACD、RSI、均线、量价等技术指标综合评分，仅供参考，不构成投资建议<br>
+  点击任意股票查看完整K线趋势图 &middot; <a href="index.html">返回A股分析</a>
+</div>
+
+<script>
+/* ============================================================
+ * 买入卖出信号分析
+ * 数据源: 腾讯财经
+ *   - 本地开发 (localhost): 同源 /api/kline (server.py)
+ *   - GitHub Pages: Cloudflare Worker CORS 代理
+ *     修改下面的 WORKER_URL 为你的 Worker 地址
+ * ============================================================ */
+
+/* ---- Cloudflare Worker URL ----
+ * 部署步骤见项目根目录 cloudflare-worker.js 文件头部注释
+ * 例如: var WORKER_URL = 'https://stock-proxy.xxx.workers.dev';
+ * 本地开发设为 '' 即可, 会自动使用同源代理
+ */
+var WORKER_URL = '';
+
+/* ---- 自动选择 API 地址 ---- */
+function getApiUrl(path) {
+  var isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  if (isLocal) {
+    return path;  // 同源代理 (server.py)
+  }
+  if (WORKER_URL) {
+    return WORKER_URL + path;  // Cloudflare Worker
+  }
+  // GitHub Pages 但未配置 Worker: 尝试直接请求 (会被 CORS 拦, 但至少有错误提示)
+  return path;
+}
+
+/* ---- 环境检测 ---- */
+var ENV = { isFile: false, isLocal: false };
+(function detectEnv() {
+  ENV.isFile = (window.location.protocol === 'file:');
+  ENV.isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+})();
+
+function showEnvNotice(msg) {
+  var box = document.getElementById('env-notice');
+  var badge = document.getElementById('env-badge');
+  var text = document.getElementById('env-text');
+  if (!box) return;
+  if (msg) {
+    box.style.display = 'flex';
+    badge.textContent = '提示';
+    badge.className = 'env-badge warn';
+    text.innerHTML = msg;
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+/* ---- 股票模板表 ---- */
+var STOCK_MAP = {
+  "000001": "平安银行", "000002": "万科A", "000333": "美的集团",
+  "000338": "潍柴动力", "000589": "贵州轮胎", "000625": "长安汽车",
+  "000651": "格力电器", "000708": "中信特钢", "000725": "京东方A",
+  "000776": "广发证券", "000858": "五粮液", "002304": "洋河股份",
+  "002594": "比亚迪", "002415": "海康威视", "002475": "立讯精密",
+  "300750": "宁德时代", "300059": "东方财富", "300760": "迈瑞医疗",
+  "600009": "上海机场", "600016": "民生银行", "600036": "招商银行",
+  "600048": "保利发展", "600085": "同仁堂", "600111": "北方稀土",
+  "600276": "恒瑞医药", "600309": "万华化学", "600519": "贵州茅台",
+  "600570": "恒生电子", "600585": "海螺水泥", "600887": "伊利股份",
+  "600900": "长江电力", "601012": "隆基绿能", "601088": "中国神华",
+  "601166": "兴业银行", "601288": "农业银行", "601318": "中国平安",
+  "601398": "工商银行", "601668": "中国建筑", "601888": "中国中免",
+  "601919": "中远海控", "601998": "中信银行", "603288": "海天味业",
+  "688981": "中芯国际", "688036": "传音控股",
+};
+
+/* ---- 自选股 ---- */
+var FAV_KEY = 'stock_fav_list_h5';
+var DEFAULT_FAVS = [
+  {code:'000001', name:'平安银行'},
+  {code:'600519', name:'贵州茅台'},
+  {code:'000858', name:'五粮液'},
+  {code:'600036', name:'招商银行'},
+  {code:'601318', name:'中国平安'},
+];
+function getFavs() {
+  try {
+    var d = localStorage.getItem(FAV_KEY);
+    if (d) { var p = JSON.parse(d); if (p && p.length > 0) return p; }
+  } catch(e) {}
+  localStorage.setItem(FAV_KEY, JSON.stringify(DEFAULT_FAVS));
+  return DEFAULT_FAVS.slice();
+}
+
+var currentSource = 'fav';
+var analysisResults = [];
+
+function switchSource(src) {
+  currentSource = src;
+  document.getElementById('src-fav').classList.toggle('active', src === 'fav');
+  document.getElementById('src-all').classList.toggle('active', src === 'all');
+  updateSourceInfo();
+  startAnalysis();
+}
+
+function getStockList() {
+  if (currentSource === 'fav') {
+    return getFavs();
+  }
+  var list = [];
+  for (var c in STOCK_MAP) {
+    if (STOCK_MAP.hasOwnProperty(c)) {
+      list.push({ code: c, name: STOCK_MAP[c] });
+    }
+  }
+  return list;
+}
+
+function updateSourceInfo() {
+  var stocks = getStockList();
+  document.getElementById('source-info').textContent = '共 ' + stocks.length + ' 只';
+}
+
+/* ---- 数据获取 ---- */
+async function fetchKline(code) {
+  if (ENV.isFile) throw new Error('file:// 协议无法获取远程数据');
+  var url = getApiUrl('/api/kline?code=' + code);
+  var resp = await fetch(url, { cache: 'no-store' });
+  if (!resp.ok) {
+    var errText = '';
+    try { errText = await resp.text(); } catch(e) {}
+    throw new Error('HTTP ' + resp.status + (errText ? ': ' + errText.substring(0, 100) : ''));
+  }
+  var raw = await resp.json();
+  if (raw && raw.error) throw new Error(raw.error);
+
+  // 解析腾讯返回的数据
+  if (raw && raw.data) {
+    var keys = Object.keys(raw.data);
+    if (keys.length) {
+      var sd = raw.data[keys[0]];
+      var dayData = sd.qfqday || sd.day;
+      if (dayData && dayData.length) {
+        return dayData.map(function(k) {
+          return { day: String(k[0]).substring(0,10), open: +k[1], close: +k[2], high: +k[3], low: +k[4], volume: +k[5] };
+        });
+      }
+    }
+  }
+  throw new Error('数据格式不符');
+}
+
+/* ---- 技术指标计算 ---- */
+function calcMA(closes, period) {
+  var r = [];
+  for (var i = 0; i < closes.length; i++) {
+    if (i < period - 1) { r.push(null); continue; }
+    var s = 0;
+    for (var j = i - period + 1; j <= i; j++) s += closes[j];
+    r.push(s / period);
+  }
+  return r;
+}
+
+function calcEMA(arr, period) {
+  var r = []; var k = 2 / (period + 1); var prev = null;
+  for (var i = 0; i < arr.length; i++) {
+    if (i === 0) { prev = arr[i]; r.push(prev); continue; }
+    prev = arr[i] * k + prev * (1 - k);
+    r.push(prev);
+  }
+  return r;
+}
+
+function calcMACD(closes) {
+  var ef = calcEMA(closes, 12), es = calcEMA(closes, 26);
+  var dif = []; for (var i = 0; i < closes.length; i++) dif.push(ef[i] - es[i]);
+  var dea = calcEMA(dif, 9);
+  var hist = []; for (var i = 0; i < closes.length; i++) hist.push((dif[i] - dea[i]) * 2);
+  return { dif: dif, dea: dea, hist: hist };
+}
+
+function calcRSI(closes, period) {
+  period = period || 14;
+  var r = [];
+  if (closes.length < period + 1) { for (var i = 0; i < closes.length; i++) r.push(null); return r; }
+  var avgGain = 0, avgLoss = 0;
+  for (var i = 1; i <= period; i++) {
+    var ch = closes[i] - closes[i-1];
+    if (ch > 0) avgGain += ch; else avgLoss += Math.abs(ch);
+  }
+  avgGain /= period; avgLoss /= period;
+  for (var i = 0; i < period; i++) r.push(null);
+  var rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  r.push(100 - (100 / (1 + rs)));
+  for (var i = period + 1; i < closes.length; i++) {
+    var ch = closes[i] - closes[i-1];
+    var g = ch > 0 ? ch : 0, l = ch < 0 ? Math.abs(ch) : 0;
+    avgGain = (avgGain * (period - 1) + g) / period;
+    avgLoss = (avgLoss * (period - 1) + l) / period;
+    rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+    r.push(100 - (100 / (1 + rs)));
+  }
+  return r;
+}
+
+function round2(v) { return Math.round(v * 100) / 100; }
+
+/* ============================================================
+ * 信号评分系统
+ * ============================================================ */
+function analyzeStock(records, code, name) {
+  if (!records || records.length < 35) return null;
+
+  var closes = records.map(function(r){ return r.close; });
+  var volumes = records.map(function(r){ return r.volume; });
+  var n = closes.length;
+  var lastIdx = n - 1;
+
+  var ma5  = calcMA(closes, 5);
+  var ma10 = calcMA(closes, 10);
+  var ma20 = calcMA(closes, 20);
+  var ma60 = calcMA(closes, 60);
+  var macd = calcMACD(closes);
+  var rsi  = calcRSI(closes, 14);
+
+  var buyScore = 0, sellScore = 0;
+  var buySignals = [], sellSignals = [];
+
+  /* --- 1. MACD金叉/死叉（最近3天内） --- */
+  for (var i = Math.max(1, lastIdx - 2); i <= lastIdx; i++) {
+    if (macd.dif[i-1] <= macd.dea[i-1] && macd.dif[i] > macd.dea[i]) {
+      buyScore += 25; buySignals.push('MACD金叉'); break;
+    }
+  }
+  for (var i = Math.max(1, lastIdx - 2); i <= lastIdx; i++) {
+    if (macd.dif[i-1] >= macd.dea[i-1] && macd.dif[i] < macd.dea[i]) {
+      sellScore += 25; sellSignals.push('MACD死叉'); break;
+    }
+  }
+
+  /* --- 2. MACD多空方向 --- */
+  if (macd.dif[lastIdx] > macd.dea[lastIdx]) { buyScore += 15; buySignals.push('DIF>DEA'); }
+  else { sellScore += 15; sellSignals.push('DIF<DEA'); }
+
+  /* --- 3. MACD柱状图翻转 --- */
+  if (macd.hist[lastIdx] > 0 && macd.hist[lastIdx-1] <= 0) { buyScore += 10; buySignals.push('柱状转正'); }
+  if (macd.hist[lastIdx] < 0 && macd.hist[lastIdx-1] >= 0) { sellScore += 10; sellSignals.push('柱状转负'); }
+
+  /* --- 4. RSI超买超卖 --- */
+  var lastRSI = rsi[lastIdx];
+  if (lastRSI !== null && lastRSI !== undefined) {
+    lastRSI = round2(lastRSI);
+    if (lastRSI < 30) { buyScore += 20; buySignals.push('RSI超卖(' + lastRSI + ')'); }
+    else if (lastRSI < 40 && rsi[lastIdx-1] !== null && rsi[lastIdx-1] < 30) { buyScore += 15; buySignals.push('RSI脱离超卖'); }
+
+    if (lastRSI > 70) { sellScore += 20; sellSignals.push('RSI超买(' + lastRSI + ')'); }
+    else if (lastRSI > 60 && rsi[lastIdx-1] !== null && rsi[lastIdx-1] > 70) { sellScore += 15; sellSignals.push('RSI脱离超买'); }
+  }
+
+  /* --- 5. 价格与均线关系 --- */
+  var lastClose = closes[lastIdx];
+  if (ma5[lastIdx] !== null) {
+    if (lastClose > ma5[lastIdx]) { buyScore += 10; buySignals.push('价>MA5'); }
+    else { sellScore += 10; sellSignals.push('价<MA5'); }
+  }
+  if (ma20[lastIdx] !== null) {
+    if (lastClose > ma20[lastIdx]) { buyScore += 10; buySignals.push('价>MA20'); }
+    else { sellScore += 10; sellSignals.push('价<MA20'); }
+  }
+
+  /* --- 6. 均线多空排列 --- */
+  if (ma5[lastIdx] !== null && ma20[lastIdx] !== null) {
+    if (ma5[lastIdx] > ma20[lastIdx]) { buyScore += 10; buySignals.push('多头排列'); }
+    else { sellScore += 10; sellSignals.push('空头排列'); }
+  }
+
+  /* --- 7. 量价配合 --- */
+  var recentVol = 0;
+  var volCount = Math.min(10, n - 1);
+  for (var i = lastIdx - volCount + 1; i <= lastIdx; i++) recentVol += volumes[i];
+  var avgVol = recentVol / volCount;
+  var volRatio = avgVol > 0 ? volumes[lastIdx] / avgVol : 1;
+  var priceChange = closes[lastIdx-1] > 0 ? (closes[lastIdx] - closes[lastIdx-1]) / closes[lastIdx-1] : 0;
+
+  if (volRatio > 1.5 && priceChange > 0) { buyScore += 10; buySignals.push('放量上涨'); }
+  else if (volRatio > 1.5 && priceChange < 0) { sellScore += 10; sellSignals.push('放量下跌'); }
+
+  /* --- 8. MA60支撑/压力 --- */
+  if (ma60[lastIdx] !== null) {
+    var dist = (lastClose - ma60[lastIdx]) / ma60[lastIdx];
+    if (dist > -0.02 && dist < 0.03) { buyScore += 5; buySignals.push('近MA60支撑'); }
+    if (dist > 0.15) { sellScore += 5; sellSignals.push('远离MA60'); }
+  }
+
+  /* --- 9. 连续上涨/下跌 --- */
+  var upDays = 0, downDays = 0;
+  for (var i = lastIdx; i > Math.max(0, lastIdx - 5); i--) {
+    if (closes[i] > closes[i-1]) upDays++; else break;
+  }
+  for (var i = lastIdx; i > Math.max(0, lastIdx - 5); i--) {
+    if (closes[i] < closes[i-1]) downDays++; else break;
+  }
+  if (upDays >= 3) { buyScore += 5; buySignals.push('连涨' + upDays + '天'); }
+  if (downDays >= 3) { sellScore += 5; sellSignals.push('连跌' + downDays + '天'); }
+
+  /* --- 计算涨跌幅 --- */
+  var prevClose = closes[lastIdx - 1] || lastClose;
+  var changePct = prevClose > 0 ? round2((lastClose - prevClose) / prevClose * 100) : 0;
+
+  return {
+    code: code, name: name || STOCK_MAP[code] || code,
+    lastClose: round2(lastClose), changePct: changePct,
+    buyScore: Math.min(buyScore, 100), sellScore: Math.min(sellScore, 100),
+    buySignals: buySignals, sellSignals: sellSignals,
+    rsi: lastRSI, volRatio: round2(volRatio),
+    sparkData: closes.slice(-30),
+    records: records,
+  };
+}
+
+/* ============================================================
+ * 迷你走势图 (SVG)
+ * ============================================================ */
+function makeSparkline(data, isUp) {
+  if (!data || data.length < 2) return '';
+  var w = 60, h = 32, pad = 2;
+  var min = Math.min.apply(null, data);
+  var max = Math.max.apply(null, data);
+  var range = max - min || 1;
+  var step = (w - pad * 2) / (data.length - 1);
+  var color = isUp ? '#f04141' : '#1abc9c';
+  var fill = isUp ? 'rgba(240,65,65,0.1)' : 'rgba(26,188,156,0.1)';
+
+  var points = '';
+  for (var i = 0; i < data.length; i++) {
+    var x = pad + i * step;
+    var y = pad + (h - pad * 2) * (1 - (data[i] - min) / range);
+    points += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+  }
+  var areaPath = points + 'L' + (w - pad) + ',' + (h - pad) + ' L' + pad + ',' + (h - pad) + ' Z';
+  return '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">'
+    + '<path d="' + areaPath + '" fill="' + fill + '" stroke="none"/>'
+    + '<path d="' + points + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linejoin="round"/>'
+    + '</svg>';
+}
+
+/* ============================================================
+ * 分析主流程
+ * ============================================================ */
+var isAnalyzing = false;
+
+async function startAnalysis() {
+  if (isAnalyzing) return;
+  isAnalyzing = true;
+
+  var btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.textContent = '分析中...';
+
+  document.getElementById('loading-section').style.display = 'block';
+  document.getElementById('lists-container').style.display = 'none';
+  document.getElementById('empty-hint').style.display = 'none';
+
+  var stocks = getStockList();
+  var total = stocks.length;
+  var done = 0;
+  var results = [];
+
+  document.getElementById('loading-text').textContent = '正在分析 ' + total + ' 只股票...';
+  document.getElementById('progress-fill').style.width = '0%';
+  document.getElementById('progress-text').textContent = '0 / ' + total;
+
+  /* 并发请求，每批5个 */
+  var batchSize = 5;
+  for (var i = 0; i < stocks.length; i += batchSize) {
+    var batch = stocks.slice(i, i + batchSize);
+    var promises = batch.map(function(s) {
+      return fetchKline(s.code).then(function(records) {
+        var result = analyzeStock(records, s.code, s.name);
+        if (result) results.push(result);
+      }).catch(function(err) {
+        console.warn('[分析失败]', s.code, s.name, err.message);
+      });
+    });
+
+    await Promise.allSettled(promises);
+
+    done += batch.length;
+    var pct = Math.round(done / total * 100);
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-text').textContent = done + ' / ' + total;
+  }
+
+  analysisResults = results;
+
+  /* 排序: 买入按buyScore降序，卖出按sellScore降序 */
+  results.sort(function(a, b) { return b.buyScore - a.buyScore; });
+  var buyList = results.filter(function(r) { return r.buyScore >= 30; }).slice(0, 15);
+
+  results.sort(function(a, b) { return b.sellScore - a.sellScore; });
+  var sellList = results.filter(function(r) { return r.sellScore >= 30; }).slice(0, 15);
+
+  renderLists(buyList, sellList);
+
+  document.getElementById('loading-section').style.display = 'none';
+  document.getElementById('lists-container').style.display = 'grid';
+
+  isAnalyzing = false;
+  btn.disabled = false;
+  btn.textContent = '刷新分析';
+
+  if (results.length === 0) {
+    document.getElementById('lists-container').style.display = 'none';
+    document.getElementById('empty-hint').style.display = 'block';
+    showEnvNotice('未能获取到任何股票数据，请检查网络连接或使用 <strong>run.bat</strong> 启动本地服务器');
+  } else if (!ENV.isOnline && !ENV.hasProxy) {
+    showEnvNotice('部分数据获取失败，已显示成功获取的结果');
+  } else {
+    showEnvNotice(null);
+  }
+}
+
+/* ---- 渲染清单 ---- */
+function renderLists(buyList, sellList) {
+  document.getElementById('buy-count').textContent = '(' + buyList.length + '只)';
+  document.getElementById('sell-count').textContent = '(' + sellList.length + '只)';
+
+  document.getElementById('buy-list').innerHTML = buyList.length > 0
+    ? buyList.map(function(r) { return renderCard(r, 'buy'); }).join('')
+    : '<div class="empty-hint">暂无符合条件的买入信号<br>（评分需 &ge; 30）</div>';
+
+  document.getElementById('sell-list').innerHTML = sellList.length > 0
+    ? sellList.map(function(r) { return renderCard(r, 'sell'); }).join('')
+    : '<div class="empty-hint">暂无符合条件的卖出信号<br>（评分需 &ge; 30）</div>';
+}
+
+function renderCard(r, type) {
+  var score = type === 'buy' ? r.buyScore : r.sellScore;
+  var signals = type === 'buy' ? r.buySignals : r.sellSignals;
+  var isUp = r.changePct >= 0;
+  var spark = makeSparkline(r.sparkData, isUp);
+  var priceClass = isUp ? 'up' : 'down';
+  var sign = r.changePct >= 0 ? '+' : '';
+
+  /* 信号标签最多显示3个 */
+  var tags = signals.slice(0, 3).map(function(s) {
+    return '<span class="signal-tag ' + type + '">' + s + '</span>';
+  }).join('');
+  if (signals.length > 3) tags += '<span class="signal-tag ' + type + '">+' + (signals.length - 3) + '</span>';
+
+  return '<a class="stock-card ' + type + '" href="index.html?code=' + r.code + '">'
+    + '<div class="score-badge">' + score + '</div>'
+    + '<div class="info">'
+    +   '<div class="name-row">'
+    +     '<span class="name">' + r.name + '</span>'
+    +     '<span class="code">' + r.code + '</span>'
+    +     '<span class="price ' + priceClass + '">' + sign + r.changePct + '%</span>'
+    +   '</div>'
+    +   '<div class="signal-row">' + tags + '</div>'
+    + '</div>'
+    + '<div class="sparkline">' + spark + '</div>'
+    + '</a>';
+}
+
+/* ---- 初始化 ---- */
+window.onload = async function() {
+  updateSourceInfo();
+  if (ENV.isFile) {
+    showEnvNotice('当前是 <strong>file://</strong> 协议, 浏览器禁止跨域获取数据. 请通过 <strong>run.bat</strong> 启动本地服务器, 然后访问 <a href="http://localhost:8080/stock/signals.html" style="color:#4fc3f7;">http://localhost:8080/stock/signals.html</a>');
+  } else if (!API_BASE && !ENV.isLocal) {
+    // GitHub Pages 上且未配置 Worker
+    showEnvNotice('GitHub Pages 部署需要配置 Cloudflare Worker. 请参考项目根目录的 <strong>cloudflare-worker.js</strong> 部署说明, 然后在 signals.html 第 155 行将 API_BASE 改为你的 Worker URL');
+    document.getElementById('loading-section').style.display = 'none';
+    document.getElementById('empty-hint').style.display = 'block';
+  } else {
+    showEnvNotice(null);
+    startAnalysis();
+  }
+};
+</script>
+</body>
+</html>

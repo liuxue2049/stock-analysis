@@ -16,6 +16,8 @@
     .header button:active { background: #d03030; }
     .header button.btn-refresh { background: #2196F3; }
     .header button.btn-refresh:active { background: #1976D2; }
+    .header button.btn-signals { background: #ff9800; }
+    .header button.btn-signals:active { background: #f57c00; }
     .header .btn-back { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid #3a4a5a; border-radius: 6px; background: #1a2733; color: #89a; font-size: 16px; text-decoration: none; flex-shrink: 0; }
     .header .btn-back:active { background: #2a3a4a; color: #fff; }
 
@@ -133,6 +135,7 @@
   <input id="search-input" type="text" placeholder="输入股票代码或名称" onkeydown="if(event.key==='Enter')searchStock()">
   <button onclick="searchStock()">查询</button>
   <button class="btn-refresh" onclick="manualRefresh()">刷新</button>
+  <button class="btn-signals" onclick="location.href='signals.html'">买卖信号</button>
   <div id="search-results" class="search-results"></div>
 </div>
 
@@ -226,8 +229,30 @@
 <script>
 /* ============================================================
  * A股分析 H5 版 - 纯前端实现
- * 数据源: 新浪财经 JSONP (无需后端)
+ * 数据源: 腾讯财经 / 新浪财经
+ *   - 本地开发 (localhost): 同源 /proxy (server.py)
+ *   - GitHub Pages: Cloudflare Worker CORS 代理
+ *     修改下面的 WORKER_URL 为你的 Worker 地址
  * ============================================================ */
+
+/* ---- Cloudflare Worker URL ----
+ * 部署步骤见项目根目录 cloudflare-worker.js 文件头部注释
+ * 例如: var WORKER_URL = 'https://stock-proxy.xxx.workers.dev';
+ * 本地开发设为 '' 即可
+ */
+var WORKER_URL = '';
+
+/* ---- 自动选择 API 地址 ---- */
+function getApiUrl(path) {
+  var isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  if (isLocal) {
+    return path;  // 同源代理 (server.py)
+  }
+  if (WORKER_URL) {
+    return WORKER_URL + path;  // Cloudflare Worker
+  }
+  return path;  // GitHub Pages 但未配置 Worker: 直接请求 (可能被 CORS 拦)
+}
 
 var klineChart = echarts.init(document.getElementById('kline-chart'), null, { renderer: 'canvas' });
 var volChart   = echarts.init(document.getElementById('vol-chart'), null, { renderer: 'canvas' });
@@ -857,25 +882,25 @@ function buildApiUrls(symbol, days, period) {
   var params = getPeriodParams(period);
   var urls = [];
 
-  // 新浪K线 (仅代理模式可用, 无CORS)
-  var sinaUrl = 'https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol='
-           + symbol + '&scale=' + params.scale + '&ma=no&datalen=' + days;
-
   // 腾讯K线 — 日/周/月用 fqkline 接口
   var tencentUrl;
   if (period === '60min') {
-    // 60分钟用不同接口
     tencentUrl = 'https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=' + symbol + ',m60,,' + days;
   } else {
     tencentUrl = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=' + symbol + ',' + params.txType + ',,,' + days + ',qfq';
   }
 
-  if (ENV.hasProxy) {
-    // 本地代理: 新浪 + 腾讯
-    urls.push({ url: '/proxy?url=' + encodeURIComponent(sinaUrl), mode: 'proxy', src: 'sina' });
+  var isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  if (isLocal) {
+    // 本地开发: 通过同源 /proxy (server.py)
     urls.push({ url: '/proxy?url=' + encodeURIComponent(tencentUrl), mode: 'proxy', src: 'tencent' });
+  } else if (WORKER_URL) {
+    // GitHub Pages + Worker: 通过 Worker 代理 (需要把 symbol 转回 code)
+    var code = symbol.replace(/^[shsz]/, '');
+    urls.push({ url: WORKER_URL + '/api/kline?code=' + code, mode: 'worker', src: 'tencent' });
   } else {
-    // 纯前端: 腾讯CORS直连 (新浪无CORS, 无法使用)
+    // GitHub Pages 无 Worker: 尝试 CORS 直连
     urls.push({ url: tencentUrl, mode: 'cors', src: 'tencent' });
   }
 
@@ -913,8 +938,8 @@ async function tryFetchStock(code, days, period) {
         var text = await resp.text();
         try { raw = JSON.parse(text); }
         catch(e) { raw = text; }
-      } else if (mode === 'cors') {
-        // 直接 fetch (腾讯K线API支持 CORS *)
+      } else if (mode === 'cors' || mode === 'worker') {
+        // 直接 fetch 或 Worker 代理 (都返回标准 JSON)
         var resp2 = await fetch(url, { cache: 'no-store' });
         if (!resp2.ok) throw new Error('HTTP ' + resp2.status);
         raw = await resp2.json();
@@ -1550,9 +1575,16 @@ window.onload = async function() {
   renderFavSelect();
   // 先检测代理是否可用, 再加载数据
   await detectProxy();
-  // 预加载第一只自选股
-  var favs = getFavs();
-  if (favs.length > 0) loadStock(favs[0].code);
+  // 检查URL参数: ?code=XXXXXX (从买卖信号页面跳转过来)
+  var params = new URLSearchParams(window.location.search);
+  var codeParam = params.get('code');
+  if (codeParam && /^\d{6}$/.test(codeParam)) {
+    loadStock(codeParam);
+  } else {
+    // 预加载第一只自选股
+    var favs = getFavs();
+    if (favs.length > 0) loadStock(favs[0].code);
+  }
   startAutoRefresh();
 };
 </script>
