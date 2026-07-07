@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>命理排盘</title>
+<script src="https://cdn.jsdelivr.net/npm/lunar-javascript/lunar.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/iztro/dist/iztro.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Songti SC','SimSun','Noto Serif SC',serif;background:#0a0a12;color:#e8dcc8;min-height:100vh}
+.container{max-width:960px;margin:0 auto;padding:20px}
+h1{text-align:center;font-size:28px;color:#f0c860;margin:20px 0 8px;letter-spacing:8px;text-shadow:0 0 20px rgba(240,200,96,.3)}
+.subtitle{text-align:center;font-size:13px;color:rgba(232,220,200,.4);margin-bottom:30px;letter-spacing:4px}
+.input-panel{background:linear-gradient(135deg,rgba(30,25,40,.9),rgba(20,18,30,.95));border:1px solid rgba(240,200,96,.2);border-radius:12px;padding:24px;margin-bottom:24px;backdrop-filter:blur(10px)}
+.input-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center}
+.input-group{display:flex;flex-direction:column;gap:4px}
+.input-group label{font-size:11px;color:rgba(232,220,200,.5);letter-spacing:2px}
+.input-group select,.input-group input{background:rgba(255,255,255,.06);border:1px solid rgba(240,200,96,.2);color:#e8dcc8;padding:8px 12px;border-radius:6px;font-size:14px;font-family:inherit;width:90px}
+.input-group select:focus,.input-group input:focus{outline:none;border-color:#f0c860;box-shadow:0 0 8px rgba(240,200,96,.2)}
+.input-group input[type=time]{width:110px}
+.btn-calc{background:linear-gradient(135deg,#f0c860,#d4a040);color:#1a1520;border:none;padding:10px 32px;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;letter-spacing:4px;font-family:inherit;transition:all .2s}
+.btn-calc:hover{transform:scale(1.02);box-shadow:0 0 20px rgba(240,200,96,.4)}
+.gender-toggle{display:flex;gap:4px}
+.gender-btn{padding:8px 16px;border:1px solid rgba(240,200,96,.2);background:transparent;color:rgba(232,220,200,.5);border-radius:6px;cursor:pointer;font-family:inherit;font-size:14px;transition:all .2s}
+.gender-btn.active{background:rgba(240,200,96,.15);color:#f0c860;border-color:#f0c860}
+.result{display:none}.result.show{display:block}
+.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:24px}
+.pillar{text-align:center;background:linear-gradient(180deg,rgba(40,30,55,.9),rgba(25,20,35,.95));border:1px solid rgba(240,200,96,.15);border-radius:10px;padding:16px 8px}
+.pillar-label{font-size:11px;color:rgba(232,220,200,.4);letter-spacing:2px;margin-bottom:8px}
+.pillar-stem{font-size:28px;font-weight:bold;margin:4px 0;line-height:1.2}
+.pillar-branch{font-size:28px;font-weight:bold;margin:4px 0;line-height:1.2}
+.pillar-sub{font-size:10px;color:rgba(232,220,200,.35);margin-top:6px}
+.el-木{color:#6bc96b}.el-火{color:#ff6b6b}.el-土{color:#f0c860}.el-金{color:#e0e0e0}.el-水{color:#6bb5ff}
+.bg-木{background:rgba(107,201,107,.15)}.bg-火{background:rgba(255,107,107,.15)}.bg-土{background:rgba(240,200,96,.15)}.bg-金{background:rgba(224,224,224,.15)}.bg-水{background:rgba(107,181,255,.15)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:24px}
+.info-card{background:rgba(30,25,40,.8);border:1px solid rgba(240,200,96,.1);border-radius:8px;padding:14px}
+.info-card h3{font-size:12px;color:rgba(232,220,200,.4);letter-spacing:2px;margin-bottom:8px}
+.info-card .val{font-size:16px;color:#f0c860}
+.elements-chart{display:flex;gap:12px;align-items:flex-end;justify-content:center;height:120px;margin:16px 0}
+.element-bar{display:flex;flex-direction:column;align-items:center;gap:4px;width:50px}
+.element-bar .bar{width:30px;border-radius:4px 4px 0 0;min-height:4px;transition:height .5s}
+.element-bar .label{font-size:14px;font-weight:bold}
+.element-bar .count{font-size:10px;color:rgba(232,220,200,.4)}
+.luck-section{margin-bottom:24px}
+.luck-section h2{font-size:16px;color:#f0c860;margin-bottom:12px;letter-spacing:4px;border-bottom:1px solid rgba(240,200,96,.15);padding-bottom:8px}
+.luck-grid{display:flex;gap:6px;flex-wrap:wrap}
+.luck-pillar{text-align:center;background:rgba(30,25,40,.8);border:1px solid rgba(240,200,96,.1);border-radius:6px;padding:8px 6px;min-width:56px}
+.luck-age{font-size:10px;color:rgba(232,220,200,.35)}
+.luck-stem{font-size:18px;font-weight:bold}
+.luck-branch{font-size:18px;font-weight:bold}
+.ten-gods{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+.god-tag{padding:4px 12px;border-radius:16px;font-size:12px;border:1px solid rgba(240,200,96,.15)}
+.tab-nav{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid rgba(240,200,96,.1);padding-bottom:8px}
+.tab-btn{padding:8px 16px;background:transparent;border:none;color:rgba(232,220,200,.4);cursor:pointer;font-family:inherit;font-size:13px;letter-spacing:2px;border-bottom:2px solid transparent;transition:all .2s}
+.tab-btn.active{color:#f0c860;border-bottom-color:#f0c860}
+.tab-content{display:none}.tab-content.active{display:block}
+.zw-chart{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-bottom:24px}
+.zw-palace{background:rgba(30,25,40,.85);border:1px solid rgba(240,200,96,.12);border-radius:6px;padding:8px;min-height:90px;cursor:pointer;transition:border-color .2s}
+.zw-palace:hover{border-color:rgba(240,200,96,.35)}
+.zw-palace.life{border-color:rgba(240,200,96,.5);box-shadow:0 0 10px rgba(240,200,96,.1)}
+.zw-palace-name{font-size:10px;color:rgba(232,220,200,.4);letter-spacing:1px}
+.zw-star{display:inline-block;font-size:11px;margin:1px 2px;padding:1px 4px;border-radius:3px}
+.zw-star.major{color:#f0c860;font-weight:bold}
+.zw-star.minor{color:rgba(232,220,200,.5)}
+.zw-star.bright{color:#ff6b6b}
+.zw-mutagen{font-size:9px;color:#6bb5ff;margin-left:2px}
+
+/* Analysis sections */
+.analysis-section{background:rgba(25,20,35,.9);border:1px solid rgba(240,200,96,.12);border-radius:10px;padding:20px;margin-bottom:20px}
+.analysis-section h2{font-size:18px;color:#f0c860;margin-bottom:16px;letter-spacing:4px;display:flex;align-items:center;gap:8px}
+.analysis-section h2::before{content:'';display:inline-block;width:3px;height:18px;background:#f0c860;border-radius:2px}
+.analysis-section h3{font-size:14px;color:rgba(232,220,200,.7);margin:14px 0 8px;letter-spacing:2px}
+.analysis-text{font-size:14px;line-height:2;color:rgba(232,220,200,.75);text-align:justify}
+.highlight{color:#f0c860;font-weight:bold}
+.tag{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;margin:2px 4px;border:1px solid}
+.tag-good{color:#6bc96b;border-color:rgba(107,201,107,.3);background:rgba(107,201,107,.08)}
+.tag-bad{color:#ff6b6b;border-color:rgba(255,107,107,.3);background:rgba(255,107,107,.08)}
+.tag-neutral{color:#6bb5ff;border-color:rgba(107,181,255,.3);background:rgba(107,181,255,.08)}
+.score-bar{height:8px;border-radius:4px;background:rgba(255,255,255,.06);margin:8px 0;overflow:hidden}
+.score-fill{height:100%;border-radius:4px;transition:width .8s}
+
+@media(max-width:600px){
+  .pillars{grid-template-columns:repeat(2,1fr)}
+  .zw-chart{grid-template-columns:repeat(3,1fr)}
+  .input-row{flex-direction:column}
+  h1{font-size:22px;letter-spacing:4px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>天 机 命 盘</h1>
+  <div class="subtitle">八字排盘 · 紫微斗数 · 命理解析</div>
+
+  <div class="input-panel">
+    <div class="input-row">
+      <div class="input-group"><label>出生年</label><input type="number" id="year" value="1990" min="1900" max="2100"></div>
+      <div class="input-group"><label>月</label><select id="month"></select></div>
+      <div class="input-group"><label>日</label><select id="day"></select></div>
+      <div class="input-group"><label>时辰</label><select id="hour">
+        <option value="0">子时 (23-01)</option><option value="2">丑时 (01-03)</option><option value="4">寅时 (03-05)</option>
+        <option value="6">卯时 (05-07)</option><option value="8">辰时 (07-09)</option><option value="10">巳时 (09-11)</option>
+        <option value="12" selected>午时 (11-13)</option><option value="14">未时 (13-15)</option><option value="16">申时 (15-17)</option>
+        <option value="18">酉时 (17-19)</option><option value="20">戌时 (19-21)</option><option value="22">亥时 (21-23)</option>
+      </select></div>
+      <div class="input-group"><label>性别</label><div class="gender-toggle">
+        <button class="gender-btn active" data-g="male">♂ 男</button>
+        <button class="gender-btn" data-g="female">♀ 女</button>
+      </div></div>
+      <div class="input-group" style="justify-content:flex-end"><label>&nbsp;</label><button class="btn-calc" onclick="calculate()">起 盘</button></div>
+    </div>
+  </div>
+
+  <div id="result" class="result">
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="bazi">八字排盘</button>
+      <button class="tab-btn" data-tab="analysis">命理解析</button>
+      <button class="tab-btn" data-tab="ziwei">紫微斗数</button>
+    </div>
+
+    <div id="tab-bazi" class="tab-content active">
+      <div id="pillars" class="pillars"></div>
+      <div id="info-cards" class="info-grid"></div>
+      <div id="elements-section"><h2 style="font-size:16px;color:#f0c860;margin-bottom:12px;letter-spacing:4px;border-bottom:1px solid rgba(240,200,96,.15);padding-bottom:8px">五行力量</h2><div id="elements-chart" class="elements-chart"></div></div>
+      <div id="ten-gods-section"><h2 style="font-size:16px;color:#f0c860;margin-bottom:12px;letter-spacing:4px;border-bottom:1px solid rgba(240,200,96,.15);padding-bottom:8px">十神</h2><div id="ten-gods" class="ten-gods"></div></div>
+      <div id="luck-section" class="luck-section"></div>
+    </div>
+
+    <div id="tab-analysis" class="tab-content">
+      <div id="analysis-content"></div>
+    </div>
+
+    <div id="tab-ziwei" class="tab-content">
+      <div id="zw-info" class="info-grid" style="margin-bottom:16px"></div>
+      <div id="zw-chart" class="zw-chart"></div>
+      <div id="zw-analysis" class="analysis-section" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Init =====
+const monthSel=document.getElementById('month'),daySel=document.getElementById('day');
+for(let i=1;i<=12;i++) monthSel.innerHTML+=`<option value="${i}">${i}月</option>`;
+for(let i=1;i<=31;i++) daySel.innerHTML+=`<option value="${i}">${i}日</option>`;
+monthSel.value=5;daySel.value=15;
+let gender='male';
+document.querySelectorAll('.gender-btn').forEach(b=>{b.onclick=()=>{document.querySelectorAll('.gender-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');gender=b.dataset.g}});
+document.querySelectorAll('.tab-btn').forEach(b=>{b.onclick=()=>{document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));b.classList.add('active');document.getElementById('tab-'+b.dataset.tab).classList.add('active')}});
+
+const STEM_EL={甲:'木',乙:'木',丙:'火',丁:'火',戊:'土',己:'土',庚:'金',辛:'金',壬:'水',癸:'水'};
+const BRANCH_EL={子:'水',丑:'土',寅:'木',卯:'木',辰:'土',巳:'火',午:'火',未:'土',申:'金',酉:'金',戌:'土',亥:'水'};
+const EL_ORDER=['木','火','土','金','水'];
+const YIN='乙丁己辛癸',YANG='甲丙戊庚壬';
+
+// ===== Knowledge Base =====
+const DM_ANALYSIS={
+甲:{name:'甲木',img:'参天巨木',trait:'正直仁德，上进心强，有担当与开创精神。天生具备管理才能，不甘平庸，向往权威。',career:'企业家、高管、军警、建筑师、教育管理',love:'重情义，有保护欲，但有时过于强势。宜找能包容自己、欣赏自己能力的伴侣。',health:'肝胆、头部、神经系统需注意。春季生人尤佳。',favor:'喜庚金雕琢成器，喜火泄秀生财',avoid:'忌重金伐木失仁，忌无火水冷则顽而不化'},
+乙:{name:'乙木',img:'藤萝花草',trait:'外表温和柔顺，内心坚韧机变，能屈能伸。敏感细腻，审美直觉出众，善沟通谈判。',career:'艺术、公关、咨询、设计、文案策划、时尚',love:'温柔体贴，善解人意，但容易优柔寡断。宜找有主见、能给自己安全感的伴侣。',health:'肝胆、筋骨、眼睛需关注。',favor:'喜癸水滋润、丙火照耀',avoid:'忌燥土枯木或庚金强剪，易失秀气'},
+丙:{name:'丙火',img:'太阳烈火',trait:'光明磊落，慷慨积极，富有感染力与创造力。行事干脆，喜热闹，但也易冲动急躁。',career:'演艺、互联网、能源、传播、教育、餐饮',love:'热情奔放，爱得轰轰烈烈，但三分钟热度。宜找稳重型伴侣平衡自己。',health:'心脏、血压、小肠需注意。忌熬夜。',favor:'喜壬水辅映成既济之功',avoid:'忌土重晦光、木盛闭塞，火过旺无制则虚浮'},
+丁:{name:'丁火',img:'灯烛星光',trait:'内敛明锐，洞察力强，思维深刻且富有文艺气质。追求精神层次，做事专注耐心。',career:'科技研发、医疗、玄学、文化、会计、写作',love:'感情内藏，不轻易表达，但用情至深。宜找理解自己内心世界的伴侣。',health:'心脏、血液、眼睛需关注。',favor:'喜甲木引灯、庚金劈甲生火',avoid:'忌丙火夺光、湿木晦火，官杀过重易憔悴'},
+戊:{name:'戊土',img:'城墙高岗',trait:'敦厚诚实，包容力强，处事沉稳且富有担当。重承诺，有大局观，但有时略显固执。',career:'土木工程、金融、地产、行政管理、仓储、农业',love:'踏实可靠，是家庭的顶梁柱，但不够浪漫。宜找活泼型伴侣增添情趣。',health:'脾胃、消化系统、皮肤需注意。',favor:'喜甲木疏通、丙火暖局',avoid:'忌金水过多泄耗元气，忌木重土倾'},
+己:{name:'己土',img:'田园湿土',trait:'宽厚包容，适应性强，学习能力优秀，善于整合资源。为人低调务实，但容易内心纠结。',career:'教育、服务、人力资源、农业、财务、咨询',love:'温柔包容，善于照顾人，但容易委曲求全。宜找有担当、能给自己方向的伴侣。',health:'脾胃、肌肉、消化系统需关注。',favor:'喜丙火暖局、癸水滋润',avoid:'忌甲木重克、金水多而土崩'},
+庚:{name:'庚金',img:'钢铁顽金',trait:'刚强果敢，义气为先，执行力超群，具有攻坚克难精神。竞争意识强烈，不喜约束。',career:'军警、机械、律师、外科医生、IT开发、金融',love:'直接坦率，爱恨分明，但容易过于刚硬。宜找温柔型伴侣以柔克刚。',health:'大肠、呼吸系统、骨骼需注意。',favor:'喜丁火锻炼成器、壬水洗金显锋',avoid:'忌火过旺熔金，忌土多埋金'},
+辛:{name:'辛金',img:'珠玉首饰',trait:'秀气精致，自尊心强，追求完美，审美一流，观察力入微。善表达但易挑剔孤傲。',career:'珠宝、美容、律师、审计、精密制造、金融',love:'品味高，择偶标准高，注重精神契合。宜找同样精致有品位的伴侣。',health:'呼吸系统、牙齿、皮肤需关注。',favor:'喜壬水淘洗显光华，喜己土生金',avoid:'忌火多熔化、土重浊金'},
+壬:{name:'壬水',img:'江河湖海',trait:'心胸豁达，机智圆融，应变力极强，富有谋略。喜自由不拘束，社交手腕高超。',career:'贸易、航运、咨询、外交、互联网、旅游',love:'魅力十足，桃花旺盛，但容易见异思迁。宜找能理解自己追求自由的伴侣。',health:'肾脏、膀胱、泌尿系统需注意。',favor:'喜戊土堤岸围成格局，喜庚金发水源',avoid:'忌己土混浊，忌无制泛滥'},
+癸:{name:'癸水',img:'雨露甘泉',trait:'安静内秀，直觉通灵，感悟力极强，善于以柔克刚。心思缜密，富有神秘气质。',career:'玄学、心理学、文学、策划、情报分析、科研',love:'情感细腻丰富，容易多愁善感。宜找稳重型伴侣给自己安全感。',health:'肾脏、膀胱、生殖系统需关注。',favor:'喜庚辛生扶源头、丙火暖局成用',avoid:'忌戊土混杂、己土浊水'}
+};
+
+const TEN_GOD_ANALYSIS={
+比肩:{desc:'独立自主，有竞争意识，重义气，不喜依赖他人。适合独立创业或合伙经营。',career:'创业、合伙、独立工作',love:'独立性强，不喜欢被束缚，需要个人空间。'},
+劫财:{desc:'冲动好胜，行动力强，有侠义心，但也容易破财。社交能力强，朋友多。',career:'销售、市场、运动、演艺',love:'热情直接，但容易因冲动产生矛盾。'},
+食神:{desc:'才华横溢，口才好，享受生活，有艺术天赋。心态乐观，人缘好。',career:'餐饮、艺术、教育、写作、演艺',love:'浪漫有情趣，懂得享受爱情。'},
+伤官:{desc:'聪明绝顶，才华出众，但个性叛逆，不喜管束。创造力强，适合自由职业。',career:'自由职业、创意、技术、艺术',love:'追求完美，眼光高，容易挑剔伴侣。'},
+偏印:{desc:'思维独特，学习能力强，有研究精神，但也容易想太多。适合学术或技术领域。',career:'研究、学术、技术、玄学、医疗',love:'内敛含蓄，不善表达感情，但内心深情。'},
+正印:{desc:'善良仁慈，有包容心，重学问，得长辈助力。适合教育或文化领域。',career:'教育、文化、公益、行政',love:'温柔体贴，重视家庭，是理想的伴侣类型。'},
+偏财:{desc:'慷慨大方，社交能力强，有意外之财。适合投资或商业领域。',career:'投资、商业、金融、公关',love:'桃花旺盛，异性缘好，但容易感情复杂。'},
+正财:{desc:'踏实勤恳，理财能力强，收入稳定。适合传统行业或财务管理。',career:'财务、银行、传统行业、管理',love:'务实可靠，重视物质基础，婚姻稳定。'},
+七杀:{desc:'魄力十足，有领导才能，敢于冒险。压力大但能化压力为动力。',career:'军警、管理、创业、竞技',love:'强势霸道，需要伴侣的包容和理解。'},
+正官:{desc:'品行端正，有责任感，守规矩，适合体制内发展。有领导潜质。',career:'公务员、管理、法律、行政',love:'传统稳重，重视婚姻责任，是可靠的伴侣。'}
+};
+
+const STAR_ANALYSIS={
+紫微:{trait:'尊贵威严，独立果断，有帝王之气。领导力强，但有时高傲。',career:'管理、政治、企业高管',love:'眼光高，需要被崇拜和尊重。'},
+天机:{trait:'机智多谋，善于交际，思维敏捷。但善变不定，容易焦虑。',career:'策划、咨询、IT、投资',love:'聪明有趣，但想法太多让人捉摸不透。'},
+太阳:{trait:'热情开朗，自信有领导力，博爱大方。但容易操劳过度。',career:'教育、公益、传播、政治',love:'热情付出型，但容易忽略自己的需求。'},
+武曲:{trait:'刚毅果敢，有胆识重义气，执行力强。适合武职或金融。',career:'军警、金融、体育、工程',love:'直接坦率，不善甜言蜜语，但行动证明一切。'},
+天同:{trait:'温和善良，重感情有包容力，一生福泽深厚。但容易懒散。',career:'服务、文化、艺术、行政',love:'温柔体贴，是理想的伴侣，但缺乏激情。'},
+廉贞:{trait:'心高气傲，才华出众，交际能力强。但情绪化，容易得罪人。',career:'演艺、公关、法律、政治',love:'魅力四射，桃花旺盛，但感情波折多。'},
+天府:{trait:'稳重踏实，有大局观，理财能力强。一生衣食无忧。',career:'金融、地产、行政、管理',love:'可靠稳重，是家庭的经济支柱。'},
+太阴:{trait:'内向敏感，阴柔细腻，注重家庭。财运好，适合夜间工作。',career:'财务、文学、艺术、医疗',love:'温柔深情，但容易多愁善感。'},
+贪狼:{trait:'多才多艺，交际广泛，欲望强烈。桃花星，异性缘极好。',career:'演艺、销售、公关、餐饮',love:'魅力十足，但容易花心，需要自律。'},
+巨门:{trait:'口才出众，分析能力强，但也容易口舌是非。适合法律或辩论。',career:'律师、教师、评论家、分析',love:'直言不讳，容易因言语产生矛盾。'},
+天相:{trait:'温文尔雅，有服务精神，人缘好。适合辅助性工作。',career:'秘书、行政、服务、教育',love:'体贴入微，善于照顾人，是好伴侣。'},
+天梁:{trait:'有正义感，喜欢帮助别人，有长辈缘。适合公益或医疗。',career:'公益、医疗、法律、教育',love:'有保护欲，但容易操心过多。'},
+七杀:{trait:'刚强果断，有开创精神，一生波折多但能化险为夷。',career:'军警、创业、竞技、工程',love:'强势直接，需要伴侣的理解和包容。'},
+破军:{trait:'先锋变革者，不喜循规蹈矩，有破坏也有创造。一生变动多。',career:'创业、改革、技术、创意',love:'不安于现状，感情变动多，需要稳定型伴侣。'}
+};
+
+// ===== Calculate =====
+function calculate(){
+  const year=+document.getElementById('year').value,month=+monthSel.value,day=+daySel.value,hour=+document.getElementById('hour').value;
+  try{
+    const solar=Solar.fromYmdHms(year,month,day,hour,0,0);
+    const lunar=solar.getLunar();
+    const ec=lunar.getEightChar();
+    renderBaZi(ec,lunar,solar);
+    renderAnalysis(ec,lunar,solar);
+    try{
+      const zwData=iztro.astro.bySolar(`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`,Math.floor(hour/2),gender==='male');
+      renderZiWei(zwData);
+      renderZwAnalysis(zwData);
+    }catch(e){console.warn('ZiWei error:',e)}
+    document.getElementById('result').classList.add('show');
+  }catch(e){console.error(e);alert('排盘出错：'+e.message)}
+}
+
+function renderBaZi(ec,lunar,solar){
+  const pillars=[
+    {label:'年柱',stem:ec.getYearGan(),branch:ec.getYearZhi()},
+    {label:'月柱',stem:ec.getMonthGan(),branch:ec.getMonthZhi()},
+    {label:'日柱',stem:ec.getDayGan(),branch:ec.getDayZhi()},
+    {label:'时柱',stem:ec.getTimeGan(),branch:ec.getTimeZhi()}
+  ];
+  document.getElementById('pillars').innerHTML=pillars.map(p=>{
+    const s=STEM_EL[p.stem],b=BRANCH_EL[p.branch];
+    return`<div class="pillar"><div class="pillar-label">${p.label}</div><div class="pillar-stem el-${s}">${p.stem}</div><div class="pillar-branch el-${b}">${p.branch}</div><div class="pillar-sub">${s}${b!==s?' · '+b:''}</div></div>`
+  }).join('');
+
+  const dm=ec.getDayGan();
+  document.getElementById('info-cards').innerHTML=`
+    <div class="info-card"><h3>生肖</h3><div class="val">${lunar.getYearShengXiao()}</div></div>
+    <div class="info-card"><h3>日主</h3><div class="val el-${STEM_EL[dm]}">${dm} ${STEM_EL[dm]}</div></div>
+    <div class="info-card"><h3>年纳音</h3><div class="val">${lunar.getYearNaYin()}</div></div>
+    <div class="info-card"><h3>农历</h3><div class="val">${lunar.getYearInChinese()}年${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}</div></div>`;
+
+  const elCount={木:0,火:0,土:0,金:0,水:0};
+  pillars.forEach(p=>{elCount[STEM_EL[p.stem]]++;elCount[BRANCH_EL[p.branch]]++});
+  const mx=Math.max(...Object.values(elCount),1);
+  document.getElementById('elements-chart').innerHTML=EL_ORDER.map(el=>{
+    const c=elCount[el],h=c/mx*80+4;
+    return`<div class="element-bar"><div class="count">${c}</div><div class="label el-${el}">${el}</div><div class="bar bg-${el}" style="height:${h}px"></div></div>`
+  }).join('');
+
+  const gods=calcTenGods(dm,pillars);
+  document.getElementById('ten-gods').innerHTML=gods.map(g=>`<span class="god-tag el-${STEM_EL[g.stem]}">${g.pos}: ${g.stem} (${g.god})</span>`).join('');
+  renderLuckPillars(ec,lunar);
+}
+
+function calcTenGods(dm,pillars){
+  const el=STEM_EL[dm],isY=YANG.includes(dm);
+  const P={木:'火',火:'土',土:'金',金:'水',水:'木'},PB={木:'水',水:'金',金:'土',土:'火',火:'木'};
+  const C={木:'土',土:'水',水:'火',火:'金',金:'木'},CB={木:'金',金:'火',火:'水',水:'土',土:'木'};
+  function god(s){const se=STEM_EL[s],same=isY===YANG.includes(s);
+    if(se===el)return same?'比肩':'劫财';if(P[el]===se)return same?'食神':'伤官';
+    if(PB[el]===se)return same?'偏印':'正印';if(C[el]===se)return same?'偏财':'正财';
+    if(CB[el]===se)return same?'七杀':'正官';return'-'}
+  const pos=['年干','月干','日干','时干'];
+  return pillars.map((p,i)=>({stem:p.stem,pos:pos[i],god:i===2?'日主':god(p.stem)}))
+}
+
+function renderLuckPillars(ec,lunar){
+  try{
+    const yun=ec.getYun(gender==='male'?1:0),daYun=yun.getDaYun();
+    let html='<h2>大运</h2><div class="luck-grid">';
+    html+=`<div style="width:100%;font-size:12px;color:rgba(232,220,200,.35);margin-bottom:8px">起运：${yun.getStartYear()}岁</div>`;
+    daYun.forEach((dy,i)=>{if(i===0)return;const gz=dy.getGanZhi();if(!gz||gz.length<2)return;
+      const s=gz[0],b=gz[1];html+=`<div class="luck-pillar"><div class="luck-age">${dy.getStartYear?dy.getStartYear()+'岁':''}</div><div class="luck-stem el-${STEM_EL[s]||''}">${s}</div><div class="luck-branch el-${BRANCH_EL[b]||''}">${b}</div></div>`});
+    html+='</div>';document.getElementById('luck-section').innerHTML=html;
+  }catch(e){document.getElementById('luck-section').innerHTML=''}
+}
+
+// ===== Analysis =====
+function renderAnalysis(ec,lunar,solar){
+  const dm=ec.getDayGan(),info=DM_ANALYSIS[dm];
+  if(!info)return;
+  const pillars=[{stem:ec.getYearGan(),branch:ec.getYearZhi()},{stem:ec.getMonthGan(),branch:ec.getMonthZhi()},{stem:ec.getDayGan(),branch:ec.getDayZhi()},{stem:ec.getTimeGan(),branch:ec.getTimeZhi()}];
+  const gods=calcTenGods(dm,pillars);
+  const elCount={木:0,火:0,土:0,金:0,水:0};
+  pillars.forEach(p=>{elCount[STEM_EL[p.stem]]++;elCount[BRANCH_EL[p.branch]]++});
+  const dmEl=STEM_EL[dm],total=8;
+  const selfCount=elCount[dmEl],assistEl=({木:'水',火:'木',土:'火',金:'土',水:'金'})[dmEl];
+  const assistCount=elCount[assistEl];
+  const strength=selfCount+assistCount;
+  const strong=strength>=4;
+  const currentYear=new Date().getFullYear();
+  const yearLunar=Lunar.fromYmdHms(currentYear,1,1,0,0,0);
+  const yearStem=yearLunar.getYearGan();
+
+  // Ten Gods interpretation
+  const godsSummary=gods.filter(g=>g.pos!=='日干').map(g=>{
+    const info=TEN_GOD_ANALYSIS[g.god];
+    return info?`<div class="analysis-section" style="padding:14px;margin-bottom:12px">
+      <h3 style="margin:0 0 6px"><span class="el-${STEM_EL[g.stem]}">${g.god}</span> <span style="color:rgba(232,220,200,.3);font-size:11px">(${g.pos} ${g.stem})</span></h3>
+      <div class="analysis-text" style="font-size:13px">${info.desc}</div>
+      <div style="margin-top:6px"><span class="tag tag-neutral">事业：${info.career}</span></div>
+      <div style="margin-top:4px"><span class="tag tag-neutral">感情：${info.love}</span></div>
+    </div>`:''
+  }).join('');
+
+  const html=`
+    <div class="analysis-section">
+      <h2>日主解析 · ${info.name} ${info.img}</h2>
+      <div class="analysis-text">${info.trait}</div>
+      <div style="margin-top:12px">
+        <h3>五行喜忌</h3>
+        <div style="margin:8px 0"><span class="tag tag-good">✓ 喜：${info.favor}</span></div>
+        <div style="margin:8px 0"><span class="tag tag-bad">✗ 忌：${info.avoid}</span></div>
+      </div>
+      <div style="margin-top:12px">
+        <h3>日主强弱</h3>
+        <div class="score-bar"><div class="score-fill" style="width:${Math.min(100,strength/total*100)}%;background:${strong?'#6bc96b':'#ff6b6b'}"></div></div>
+        <div class="analysis-text">日主<span class="highlight">${dm}${dmEl}</span>，${strong?'偏强':'偏弱'}。${strong?'喜克泄耗（'+({木:'金火土',火:'水土金',土:'木水金',金:'火木水',水:'土木火'})[dmEl]+'）来平衡。':'喜生扶（'+assistEl+'、'+dmEl+'）来增强。'}</div>
+      </div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>性格特质</h2>
+      <div class="analysis-text">${info.trait}</div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>事业方向</h2>
+      <div class="analysis-text">适合行业：<span class="highlight">${info.career}</span></div>
+      <div class="analysis-text" style="margin-top:8px">日主${dmEl}之人，${({木:'具有生长、拓展的能力，适合需要创新和领导力的工作。',火:'具有感染力和创造力，适合需要表现力和热情的行业。',土:'稳重踏实有耐心，适合需要长期积累和稳定性的领域。',金:'果断刚毅有执行力，适合需要精准和纪律的行业。',水:'灵活机智善变通，适合需要应变力和沟通能力的工作。'})[dmEl]}</div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>感情婚姻</h2>
+      <div class="analysis-text">${info.love}</div>
+      <div class="analysis-text" style="margin-top:8px">${gender==='male'?
+        ({木:'男命以土为财星（妻星），八字中土的强弱影响婚姻质量。',火:'男命以金为财星（妻星），金旺则妻贤且有助力。',土:'男命以水为财星（妻星），水旺则妻聪慧灵动。',金:'男命以木为财星（妻星），木旺则妻温柔有才华。',水:'男命以火为财星（妻星），火旺则妻热情有活力。'})[dmEl]:
+        ({木:'女命以金为官星（夫星），金旺则夫有能力有担当。',火:'女命以水为官星（夫星），水旺则夫聪明有谋略。',土:'女命以木为官星（夫星），木旺则夫正直有上进心。',金:'女命以火为官星（夫星），火旺则夫热情有魅力。',水:'女命以土为官星（夫星），土旺则夫稳重可靠。'})[dmEl]}</div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>健康提醒</h2>
+      <div class="analysis-text">${info.health}</div>
+      <div class="analysis-text" style="margin-top:8px">五行${dmEl}对应：${({木:'肝、胆、筋、眼睛',火:'心、小肠、血液、眼睛',土:'脾、胃、肌肉、口腔',金:'肺、大肠、鼻、皮肤',水:'肾、膀胱、耳朵、骨骼'})[dmEl]}，日常养生宜注意相关器官的保养。</div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>${currentYear}年（${yearStem}年）流年运势</h2>
+      <div class="analysis-text">流年天干<span class="highlight el-${STEM_EL[yearStem]}">${yearStem}${STEM_EL[yearStem]}</span>，对日主${dm}来说：</div>
+      <div class="analysis-text" style="margin-top:8px">${getYearFortune(dm,yearStem)}</div>
+    </div>
+
+    <div class="analysis-section">
+      <h2>十神详解</h2>
+      ${godsSummary}
+    </div>`;
+
+  document.getElementById('analysis-content').innerHTML=html;
+}
+
+function getYearFortune(dm,yearStem){
+  const el=STEM_EL[dm],yel=STEM_EL[yearStem];
+  const P={木:'火',火:'土',土:'金',金:'水',水:'木'},PB={木:'水',水:'金',金:'土',土:'火',火:'木'};
+  const C={木:'土',土:'水',水:'火',火:'金',金:'木'},CB={木:'金',金:'火',火:'水',水:'土',土:'木'};
+  if(yel===el) return `流年与日主同五行，比肩之年。主竞争、合作、社交活跃。适合拓展人脉、合伙做事，但也要注意破财风险。`;
+  if(P[el]===yel) return `流年为日主所生，食伤之年。主才华展现、创意迸发、表达欲强。适合创作、学习新技能，但也要注意言多必失。`;
+  if(PB[el]===yel) return `流年生助日主，印星之年。主贵人相助、学业进步、获得支持。适合进修、考试、接受长辈帮助。`;
+  if(C[el]===yel) return `流年为日主所克，财星之年。主财运提升、收入增加、感情活跃。适合投资理财、拓展业务，但也要注意劳逸结合。`;
+  if(CB[el]===yel) return `流年克制日主，官杀之年。主压力增大、责任加重、有变动。适合接受挑战、升职加薪，但也要注意身体健康和人际关系。`;
+  return `流年五行${yel}与日主关系较为特殊，需结合整体八字综合判断。`;
+}
+
+// ===== ZiWei =====
+function renderZiWei(data){
+  if(!data){document.getElementById('zw-chart').innerHTML='<div style="grid-column:span 4;text-align:center;color:rgba(232,220,200,.3)">数据加载失败</div>';return}
+  const palaces=data.palaces||[];
+  document.getElementById('zw-info').innerHTML=`
+    <div class="info-card"><h3>命主</h3><div class="val">${data.soul||'-'}</div></div>
+    <div class="info-card"><h3>身主</h3><div class="val">${data.body||'-'}</div></div>
+    <div class="info-card"><h3>五行局</h3><div class="val">${data.fiveElementClass||'-'}</div></div>
+    <div class="info-card"><h3>阴阳</h3><div class="val">${gender==='male'?'♂ 男':'♀ 女'}</div></div>`;
+
+  const layout=[3,2,1,0,4,null,null,11,5,null,null,10,6,7,8,9];
+  let html='';
+  layout.forEach((idx,i)=>{
+    if(idx===null){
+      if(i===5)html+=`<div class="zw-palace" style="display:flex;flex-direction:column;justify-content:center;align-items:center;border-color:transparent;background:transparent"><div style="font-size:11px;color:rgba(232,220,200,.3)">${data.lunarYear||''}年</div><div style="font-size:11px;color:rgba(232,220,200,.3)">${data.lunarMonth||''}月${data.lunarDay||''}日</div><div style="font-size:13px;color:#f0c860;margin-top:4px">${data.soul||''} 命</div></div>`;
+      else html+='<div style="background:transparent;border:none"></div>';return}
+    const p=palaces[idx];if(!p){html+='<div class="zw-palace"></div>';return}
+    const isLife=p.name==='命宫'||p.isBodyPalace;
+    let starsHTML='';
+    (p.majorStars||[]).forEach(s=>{let cls='zw-star major';if(s.bright==='庙'||s.bright==='旺')cls+=' bright';starsHTML+=`<span class="${cls}">${s.name}${s.mutagen?'<span class="zw-mutagen">'+s.mutagen+'</span>':''}</span>`});
+    (p.minorStars||[]).forEach(s=>{starsHTML+=`<span class="zw-star minor">${s.name}${s.mutagen?'<span class="zw-mutagen">'+s.mutagen+'</span>':''}</span>`});
+    html+=`<div class="zw-palace ${isLife?'life':''}" data-idx="${idx}" onclick="highlightPalace(${idx})"><div class="zw-palace-name">${p.name||''}${p.isBodyPalace?' (身)':''}</div><div style="font-size:9px;color:rgba(232,220,200,.25)">${p.heavenlyStem||''}${p.earthlyBranch||''}</div><div class="zw-palace-stars">${starsHTML||'<span style="color:rgba(232,220,200,.15)">无主星</span>'}</div></div>`;
+  });
+  document.getElementById('zw-chart').innerHTML=html;
+}
+
+function highlightPalace(idx){
+  document.querySelectorAll('.zw-palace').forEach(p=>p.style.borderColor='');
+  const el=document.querySelector(`.zw-palace[data-idx="${idx}"]`);if(el)el.style.borderColor='rgba(240,200,96,.5)';
+}
+
+function renderZwAnalysis(data){
+  if(!data)return;
+  const palaces=data.palaces||[];
+  const lifeP=palaces.find(p=>p.name==='命宫');
+  if(!lifeP)return;
+  const majorStars=lifeP.majorStars||[];
+  if(majorStars.length===0){document.getElementById('zw-analysis').style.display='none';return}
+  const mainStar=majorStars[0].name;
+  const starInfo=STAR_ANALYSIS[mainStar];
+  if(!starInfo)return;
+
+  const html=`
+    <h2>紫微命盘解析</h2>
+    <div class="analysis-section" style="border:none;padding:0">
+      <h3>命宫主星：${mainStar}</h3>
+      <div class="analysis-text">${starInfo.trait}</div>
+      <div style="margin-top:8px"><span class="tag tag-neutral">事业：${starInfo.career}</span></div>
+      <div style="margin-top:4px"><span class="tag tag-neutral">感情：${starInfo.love}</span></div>
+    </div>
+    <div style="margin-top:16px">
+      <h3>命宫星曜组合</h3>
+      <div class="analysis-text">命宫共有 ${majorStars.length} 颗主星${majorStars.length>1?'，形成'+mainStar+'为主的星曜组合。单星入命个性鲜明，多星组合则性格更为复杂多元。':'独坐命宫，个性鲜明突出。'}</div>
+      ${majorStars.length>1?`<div class="analysis-text" style="margin-top:8px">辅星：${majorStars.slice(1).map(s=>s.name).join('、')}。这些星曜与${mainStar}相互作用，使命主性格更加丰富立体。</div>`:''}
+    </div>
+    <div style="margin-top:16px">
+      <h3>十二宫概览</h3>
+      <div class="analysis-text">${palaces.map(p=>{
+        const stars=(p.majorStars||[]).map(s=>s.name).join('');
+        return stars?`<span class="tag tag-neutral">${p.name}：${stars}</span>`:''
+      }).filter(Boolean).join(' ')}</div>
+    </div>`;
+
+  document.getElementById('zw-analysis').innerHTML=html;
+  document.getElementById('zw-analysis').style.display='block';
+}
+
+calculate();
+</script>
+</body>
+</html>
