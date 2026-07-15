@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工具箱</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #0f1923;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ---- 顶部标题区 ---- */
+    .hero {
+      width: 100%;
+      text-align: center;
+      padding: 48px 20px 32px;
+      background: linear-gradient(180deg, #15202b 0%, #0f1923 100%);
+      border-bottom: 1px solid #1a2733;
+    }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+    }
+    .hero p {
+      font-size: 14px;
+      color: #689;
+    }
+
+    /* ---- 卡片网格 ---- */
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 960px;
+      padding: 32px 20px 48px;
+    }
+
+    .card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: #15202b;
+      border: 1px solid #1a2733;
+      border-radius: 16px;
+      padding: 28px 24px;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+      flex: 1 1 calc(33.333% - 20px);
+      max-width: calc(33.333% - 14px);
+      min-width: 240px;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: #2a3a4a;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .card:active {
+      transform: translateY(-1px);
+    }
+
+    .card-icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .card-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .card-desc {
+      font-size: 13px;
+      color: #689;
+      line-height: 1.6;
+    }
+    .card-arrow {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      font-size: 18px;
+      color: #3a4a5a;
+      transition: color 0.2s, transform 0.2s;
+    }
+    .card:hover .card-arrow {
+      color: #4fc3f7;
+      transform: translateX(4px);
+    }
+
+    /* ---- 装饰条 ---- */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .card:hover::before {
+      opacity: 1;
+    }
+    .card-stock::before { background: linear-gradient(90deg, #f04141, #ff6b6b); }
+    .card-signals::before { background: linear-gradient(90deg, #ff9800, #ffc107); }
+    .card-map::before  { background: linear-gradient(90deg, #1677ff, #4fc3f7); }
+    .card-video::before { background: linear-gradient(90deg, #2ecc71, #58d68d); }
+    .card-bazi::before  { background: linear-gradient(90deg, #f0c860, #9b59b6); }
+
+    /* ---- 底部 ---- */
+    .footer {
+      margin-top: auto;
+      padding: 20px;
+      font-size: 12px;
+      color: #3a4a5a;
+    }
+
+    /* ---- 手机端 ---- */
+    @media (max-width: 800px) {
+      .hero { padding: 32px 20px 24px; }
+      .hero h1 { font-size: 22px; }
+      .grid {
+        gap: 16px;
+        padding: 24px 16px 32px;
+      }
+      .card {
+        flex: 1 1 100%;
+        max-width: 100%;
+        min-width: unset;
+        padding: 24px 20px;
+      }
+      .card-icon { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>工具箱</h1>
+  <p>选择你需要的功能</p>
+</div>
+
+<div class="grid">
+  <!-- 第一行：股票、路线、八字 -->
+
+  <!-- A股分析 -->
+  <a class="card card-stock" href="stock/index.html">
+    <span class="card-icon">📈</span>
+    <div class="card-title">A股分析</div>
+    <div class="card-desc">实时行情、K线图表、MACD/RSI技术指标，支持自选股管理</div>
+    <span class="card-arrow">→</span>
+  </a>
+
+  <!-- 路线规划导航 -->
+  <a class="card card-map" href="map/index.html">
+    <span class="card-icon">🗺️</span>
+    <div class="card-title">路线规划导航</div>
+    <div class="card-desc">基于高德地图，支持驾车/步行/骑行/公交路线规划</div>
+    <span class="card-arrow">→</span>
+  </a>
+
+  <!-- 八字紫微斗数 -->
+  <a class="card card-bazi" href="bazi/index.html">
+    <span class="card-icon">🔮</span>
+    <div class="card-title">八字紫微斗数</div>
+    <div class="card-desc">八字排盘、紫微斗数命盘、五行十神、大运流年运势解析</div>
+    <span class="card-arrow">→</span>
+  </a>
+
+  <!-- 第二行：信号、视频 -->
+
+  <!-- 买入卖出信号 -->
+  <a class="card card-signals" href="stock/signals.html">
+    <span class="card-icon">🎯</span>
+    <div class="card-title">买入卖出信号</div>
+    <div class="card-desc">自动分析自选股/模板股票，生成最佳买入清单和卖出清单，点击查看趋势图</div>
+    <span class="card-arrow">→</span>
+  </a>
+
+  <!-- 视频去水印 -->
+  <a class="card card-video" href="video/index.html">
+    <span class="card-icon">🎬</span>
+    <div class="card-title">视频去水印</div>
+    <div class="card-desc">纯浏览器端去水印，基于 OpenCV.js，所有处理本地完成</div>
+    <span class="card-arrow">→</span>
+  </a>
+
+  <!--
+    后续新增功能只需复制一个 <a class="card"> 块即可：
+    <a class="card card-xxx" href="xxx/index.html">
+      <span class="card-icon">🔧</span>
+      <div class="card-title">新功能</div>
+      <div class="card-desc">功能描述</div>
+      <span class="card-arrow">→</span>
+    </a>
+  -->
+</div>
+
+<div class="footer">GitHub Pages 静态部署</div>
+
+</body>
+</html>
