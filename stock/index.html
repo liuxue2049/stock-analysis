@@ -244,14 +244,10 @@ var WORKER_URL = 'https://falling-sunset-3621.meikoliu2020.workers.dev';
 
 /* ---- 自动选择 API 地址 ---- */
 function getApiUrl(path) {
-  var isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  if (isLocal) {
-    return path;  // 同源代理 (server.py)
-  }
   if (WORKER_URL) {
     return WORKER_URL + path;  // Cloudflare Worker
   }
-  return path;  // GitHub Pages 但未配置 Worker: 直接请求 (可能被 CORS 拦)
+  return path;  // 未配置 Worker: 直连 (可能被 CORS 拦)
 }
 
 var klineChart = echarts.init(document.getElementById('kline-chart'), null, { renderer: 'canvas' });
