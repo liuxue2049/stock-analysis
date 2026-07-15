@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>墨境 — AI 文字 RPG</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Serif+SC:wght@300;400;600;700&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root{--bg-deep:#080a12;--bg:#0c0f1a;--surface:#131729;--surface-2:#1a1f36;--surface-3:#232848;--border:#2a3055;--accent:#d4a853;--accent-light:#f0d080;--accent-dark:#a07830;--red:#c75b5b;--green:#5bc77b;--blue:#5b8bc7;--purple:#8b6bc7;--cyan:#5bc7c7;--text:#e8e2d4;--text-2:#b0b0c0;--text-muted:#606080;--font-display:'Cinzel',serif;--font-body:'Noto Serif SC',serif;--font-mono:'DM Mono',monospace;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font-body);background:var(--bg-deep);color:var(--text);min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.screen{display:none;min-height:100vh;}.screen.active{display:flex;}
+#screen-title{flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 40%,rgba(212,168,83,.06),transparent 60%),radial-gradient(ellipse at 70% 70%,rgba(139,107,199,.04),transparent 50%),var(--bg-deep);position:relative;}
+#screen-title::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(212,168,83,.12)1px,transparent 1px);background-size:40px 40px;animation:drift 20s linear infinite;opacity:.6;}
+@keyframes drift{from{transform:translate(0,0)}to{transform:translate(-40px,-40px)}}
+.title-content{position:relative;z-index:1;text-align:center;padding:20px;max-width:700px;width:100%;}
+.title-logo{font-family:var(--font-display);font-size:clamp(3rem,10vw,6rem);font-weight:900;background:linear-gradient(180deg,#f0d080,#d4a853 40%,#a07830);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.12em;filter:drop-shadow(0 0 40px rgba(212,168,83,.25));animation:pulse 4s ease-in-out infinite alternate;}
+@keyframes pulse{0%{filter:brightness(1) drop-shadow(0 0 40px rgba(212,168,83,.2))}100%{filter:brightness(1.15) drop-shadow(0 0 60px rgba(212,168,83,.35))}}
+.title-sub{color:var(--text-2);font-size:.95rem;margin-top:4px;letter-spacing:.3em;font-weight:300;}
+.title-divider{width:180px;height:1px;background:linear-gradient(90deg,transparent,var(--accent-dark),transparent);margin:24px auto;position:relative;}
+.title-divider::before{content:'◆';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--accent-dark);font-size:8px;background:var(--bg-deep);padding:0 10px;}
+.world-cards{display:flex;gap:16px;margin:0 auto 24px;max-width:680px;flex-wrap:wrap;justify-content:center;}
+.world-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 20px 16px;cursor:pointer;transition:all .3s;position:relative;overflow:hidden;flex:1;min-width:180px;max-width:220px;text-align:left;}
+.world-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--card-accent,var(--accent-dark));}
+.world-card:hover{border-color:var(--card-accent,var(--accent-dark));transform:translateY(-4px);box-shadow:0 12px 35px rgba(0,0,0,.4);}
+.world-card.selected{border-color:var(--card-accent,var(--accent));background:var(--surface-2);}
+.world-card.selected::after{content:'✓';position:absolute;top:10px;right:10px;width:22px;height:22px;background:var(--card-accent,var(--accent));color:var(--bg-deep);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
+.world-card-name{font-size:1.1rem;font-weight:700;margin-bottom:2px;}
+.world-card-sub{font-size:.72rem;color:var(--text-muted);margin-bottom:8px;font-family:var(--font-mono);}
+.world-card-desc{font-size:.78rem;color:var(--text-2);line-height:1.6;}
+.char-setup{display:none;flex-direction:column;align-items:center;gap:14px;margin-bottom:20px;animation:fadeUp .4s ease;}
+.char-setup label{font-size:.85rem;color:var(--text-2);}
+.char-setup input{width:240px;padding:12px 18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:.95rem;text-align:center;outline:none;}
+.char-setup input:focus{border-color:var(--accent-dark);}
+.btn-primary{padding:12px 36px;background:linear-gradient(135deg,var(--accent-dark),var(--accent));border:none;border-radius:8px;color:var(--bg-deep);font-family:var(--font-body);font-size:.95rem;font-weight:600;cursor:pointer;transition:all .3s;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(212,168,83,.3);}
+.btn-ghost{background:none;border:1px solid var(--border);border-radius:8px;padding:10px 24px;color:var(--text-muted);font-family:var(--font-body);font-size:.85rem;cursor:pointer;transition:all .3s;}
+.btn-ghost:hover{border-color:var(--text-muted);color:var(--text-2);}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+#screen-game{flex-direction:column;height:100vh;}
+.game-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;}
+.game-logo-sm{font-family:var(--font-display);font-size:1.1rem;color:var(--accent);font-weight:700;letter-spacing:.08em;}
+.game-location{font-size:.82rem;color:var(--text-muted);margin-left:16px;padding-left:16px;border-left:1px solid var(--border);}
+.hdr-actions{display:flex;gap:6px;}
+.btn-icon{width:36px;height:36px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--text-2);cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.btn-icon:hover{border-color:var(--accent-dark);color:var(--accent);}
+.game-body{display:flex;flex:1;overflow:hidden;}
+.game-sidebar{width:250px;flex-shrink:0;padding:20px 16px;overflow-y:auto;border-right:1px solid var(--border);background:var(--surface);}
+.sec-label{font-family:var(--font-mono);font-size:.65rem;text-transform:uppercase;letter-spacing:.12em;color:var(--accent-dark);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.stat-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.stat-lbl{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);width:24px;text-align:right;}
+.stat-bar{flex:1;height:7px;background:var(--surface-3);border-radius:4px;overflow:hidden;}
+.stat-fill{height:100%;border-radius:4px;transition:width .8s cubic-bezier(.4,0,.2,1);}
+.fill-hp{background:linear-gradient(90deg,#6b2020,var(--red),#e87070);}
+.fill-mp{background:linear-gradient(90deg,#1a3060,var(--blue),#70a8e8);}
+.stat-val{font-family:var(--font-mono);font-size:.7rem;color:var(--text-2);width:55px;text-align:right;transition:color .3s,transform .3s;}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin:14px 0 20px;}
+.stat-item{display:flex;justify-content:space-between;padding:4px 0;}
+.stat-key{font-size:.72rem;color:var(--text-muted);}
+.stat-num{font-family:var(--font-mono);font-size:.78rem;color:var(--text);}
+.inv-list,.quest-list{display:flex;flex-direction:column;gap:4px;}
+.inv-item,.quest-item{font-size:.78rem;color:var(--text-2);padding:6px 10px;background:var(--surface-2);border-radius:6px;border-left:2px solid var(--accent-dark);}
+.quest-item{border-left-color:var(--purple);}
+.empty-hint{font-size:.75rem;color:var(--text-muted);font-style:italic;}
+.game-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.scene-container{position:relative;width:100%;height:160px;overflow:hidden;flex-shrink:0;}
+.scene-bg{position:absolute;inset:0;background-size:cover;background-position:center;transition:opacity 1.5s ease;}
+.scene-atmosphere{position:absolute;inset:0;transition:background .8s ease,filter .8s ease;pointer-events:none;}
+.scene-label{position:absolute;bottom:10px;left:16px;font-size:.82rem;color:rgba(255,255,255,.7);font-family:var(--font-mono);letter-spacing:.1em;text-shadow:0 2px 8px rgba(0,0,0,.8);}
+.narrative-area{flex:1;overflow-y:auto;padding:24px 32px;}
+.narr-entry{margin-bottom:20px;line-height:2;font-size:.95rem;animation:fadeUp .4s ease;}
+.narr-entry.player-action{color:var(--accent);font-size:.85rem;padding:8px 16px;background:rgba(212,168,83,.06);border-left:2px solid var(--accent-dark);border-radius:0 6px 6px 0;margin-bottom:16px;}
+.narr-entry.system{color:var(--text-muted);font-size:.8rem;text-align:center;font-family:var(--font-mono);padding:8px 0;border-top:1px dashed var(--border);}
+.thinking{display:flex;gap:5px;padding:12px 0;justify-content:center;}
+.thinking span{width:6px;height:6px;background:var(--accent-dark);border-radius:50%;animation:thinkBounce 1.2s ease-in-out infinite;}
+.thinking span:nth-child(2){animation-delay:.15s;}.thinking span:nth-child(3){animation-delay:.3s;}
+@keyframes thinkBounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-8px)}}
+.choices-area{padding:0 32px 12px;display:flex;flex-direction:column;gap:6px;}
+.choice-btn{display:flex;align-items:center;gap:12px;width:100%;padding:12px 18px;background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--accent-dark);border-radius:0 8px 8px 0;color:var(--text);font-family:var(--font-body);font-size:.88rem;text-align:left;cursor:pointer;transition:all .25s;}
+.choice-btn:hover{background:var(--surface-3);border-left-color:var(--accent);transform:translateX(4px);}
+.choice-letter{width:26px;height:26px;line-height:26px;text-align:center;background:var(--accent-dark);color:var(--bg-deep);border-radius:4px;font-weight:700;font-size:.75rem;flex-shrink:0;}
+.choice-btn:hover .choice-letter{background:var(--accent);}
+.input-area{display:flex;gap:8px;padding:16px 32px 20px;border-top:1px solid var(--border);background:var(--bg);}
+.input-area input{flex:1;padding:12px 18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:.9rem;outline:none;}
+.input-area input:focus{border-color:var(--accent-dark);}
+.input-area input::placeholder{color:var(--text-muted);}
+.btn-send{width:44px;height:44px;background:var(--accent-dark);border:none;border-radius:8px;color:var(--bg-deep);font-size:1.1rem;cursor:pointer;transition:all .2s;flex-shrink:0;}
+.btn-send:hover{background:var(--accent);}
+.btn-send:disabled{opacity:.4;cursor:not-allowed;}
+.notif-wrap{position:fixed;top:16px;right:16px;z-index:2000;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.notif{padding:10px 18px;background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--text-muted);border-radius:0 8px 8px 0;font-size:.82rem;color:var(--text);opacity:0;transform:translateX(80px);transition:all .35s ease;max-width:280px;pointer-events:auto;}
+.notif.show{opacity:1;transform:translateX(0);}
+.notif-error{border-left-color:var(--red);}
+.notif-success{border-left-color:var(--green);}
+.modal-overlay{position:fixed;inset:0;background:rgba(8,10,18,.88);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:1000;}
+.modal-overlay.active{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;max-width:480px;width:92%;max-height:85vh;overflow-y:auto;animation:modalIn .3s ease;}
+@keyframes modalIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+.modal-head h2{font-size:1.1rem;font-weight:600;}
+.modal-close{width:30px;height:30px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;}
+.modal-close:hover{border-color:var(--red);color:var(--red);}
+.form-group{margin-bottom:16px;}
+.form-group label{display:block;font-size:.78rem;color:var(--text-2);margin-bottom:6px;font-family:var(--font-mono);}
+.form-group input{width:100%;padding:10px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:.88rem;outline:none;}
+.form-group input:focus{border-color:var(--accent-dark);}
+.form-hint{font-size:.72rem;color:var(--text-muted);margin-top:4px;line-height:1.5;}
+.form-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px;}
+.dbg{position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(0,0,0,.92);border-top:1px solid #333;padding:6px 12px;font-family:monospace;font-size:11px;color:#555;max-height:40px;overflow-y:auto;display:none;}
+.dbg.show{display:block;}
+.dbg .e{color:#f87171;}.dbg .o{color:#4ade80;}
+@media(max-width:768px){.game-body{flex-direction:column;}.game-sidebar{width:100%;max-height:0;overflow:hidden;padding:0;border-right:none;border-bottom:1px solid var(--border);transition:max-height .3s,padding .3s;}.game-sidebar.open{max-height:500px;padding:16px;overflow-y:auto;}.narrative-area{padding:20px 16px;}.choices-area{padding:0 16px 8px;}.input-area{padding:12px 16px;}.world-cards{flex-direction:column;align-items:center;}.world-card{max-width:100%;}.scene-container{height:120px;}}
+</style>
+</head>
+<body>
+<div id="screen-title" class="screen active">
+  <div class="title-content">
+    <h1 class="title-logo">墨境</h1>
+    <p class="title-sub">AI 文字角色扮演</p>
+    <div class="title-divider"></div>
+    <div class="world-cards" id="world-cards"></div>
+    <div class="char-setup" id="char-setup">
+      <label>为你的角色取一个名字</label>
+      <input type="text" id="char-name" placeholder="输入角色名..." maxlength="10" autocomplete="off">
+      <button class="btn-primary" id="btn-start">开始冒险</button>
+    </div>
+    <div style="margin-top:20px"><button class="btn-ghost" id="btn-settings-title">⚙ 设置</button><button class="btn-ghost" id="btn-test" style="margin-left:8px;color:#4ade80;border-color:#4ade80;">🔗 测试连接</button></div>
+  </div>
+</div>
+<div id="screen-game" class="screen">
+  <div class="game-header">
+    <div style="display:flex;align-items:center;"><span class="game-logo-sm">墨境</span><span class="game-location" id="g-location">—</span></div>
+    <div class="hdr-actions"><button class="btn-icon" id="btn-toggle-sidebar">☰</button><button class="btn-icon" id="btn-settings-game">⚙</button></div>
+  </div>
+  <div class="game-body">
+    <aside class="game-sidebar" id="game-sidebar">
+      <div style="margin-bottom:20px;"><div class="sec-label">角色状态</div><div class="stat-row"><span class="stat-lbl">HP</span><div class="stat-bar"><div class="stat-fill fill-hp" id="hp-bar" style="width:100%"></div></div><span class="stat-val" id="hp-val">100/100</span></div><div class="stat-row"><span class="stat-lbl">MP</span><div class="stat-bar"><div class="stat-fill fill-mp" id="mp-bar" style="width:100%"></div></div><span class="stat-val" id="mp-val">50/50</span></div><div class="stat-grid"><div class="stat-item"><span class="stat-key">等级</span><span class="stat-num" id="s-lv">1</span></div><div class="stat-item"><span class="stat-key">攻击</span><span class="stat-num" id="s-atk">10</span></div><div class="stat-item"><span class="stat-key">防御</span><span class="stat-num" id="s-def">5</span></div><div class="stat-item"><span class="stat-key">经验</span><span class="stat-num" id="s-exp">0/100</span></div><div class="stat-item"><span class="stat-key">金币</span><span class="stat-num" id="s-gold">20</span></div></div></div>
+      <div style="margin-bottom:20px;"><div class="sec-label">背包</div><div class="inv-list" id="inv-list"><div class="empty-hint">空空如也</div></div></div>
+      <div><div class="sec-label">任务</div><div class="quest-list" id="quest-list"><div class="empty-hint">暂无任务</div></div></div>
+    </aside>
+    <main class="game-main">
+      <div class="scene-container"><div class="scene-bg" id="scene-bg"></div><div class="scene-atmosphere" id="scene-atmosphere"></div><div class="scene-label" id="scene-label"></div></div>
+      <div class="narrative-area" id="narr-area"><div id="narr-content"></div></div>
+      <div class="choices-area" id="choices-area"></div>
+      <div class="input-area"><input type="text" id="action-input" placeholder="输入你的行动..." autocomplete="off"><button class="btn-send" id="btn-send">➤</button></div>
+    </main>
+  </div>
+</div>
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <div class="modal-head"><h2>⚙ 设置</h2><button class="modal-close" onclick="closeModal('modal-settings')">×</button></div>
+    <form id="settings-form">
+      <!-- API Key 已由 Cloudflare Worker 管理，前端无需配置 -->
+      <div class="form-group"><label>模型</label><input type="text" id="set-model" placeholder="glm-4-flash"></div>
+      <div class="form-actions"><button type="button" class="btn-ghost" onclick="closeModal('modal-settings')">取消</button><button type="submit" class="btn-primary">保存</button></div>
+    </form>
+  </div>
+</div>
+<div class="dbg" id="dbg"></div>
+
+<script>
+var DBGE=document.getElementById('dbg');
+function dbg(m,t){DBGE.classList.add('show');var s=document.createElement('span');s.className=t||'';s.textContent=m+'  ';DBGE.appendChild(s);}
+window.onerror=function(m,u,l){dbg('ERR:'+m+' L'+l,'e')};
+
+var WORLDS=[{id:'xuanhuan',name:'玄幻大陆',subtitle:'修仙问道·东方玄幻',desc:'灵气充沛的东方世界，修炼者追寻天道，妖兽横行，仙门林立。',accent:'#d4a853',accentLight:'#f0d080',accentDark:'#a07830',startLoc:'青云镇',intro:'你从昏迷中醒来，发现自己躺在一间简陋的茅屋里。窗外传来喧闹的人声，空气中弥漫着草药的苦涩气息。一位白发老者坐在床边，见你醒来，微微一笑："你终于醒了，从断崖上摔下来还能活命，真是命大。"',promptExtra:'东方玄幻世界。有炼气、筑基、金丹、元婴等修炼境界。NPC用东方风格名字。'},{id:'shadow',name:'暗影纪元',subtitle:'黑暗奇幻·中世纪',desc:'被黑暗侵蚀的大陆，王国腐朽，怪物横行，唯有勇者能带来希望的微光。',accent:'#c75b5b',accentLight:'#e87070',accentDark:'#8b3030',startLoc:'灰烬村',intro:'暴雨如注。你跪在泥泞之中，眼前是燃烧的废墟。远处传来低沉的号角声，那是黑暗军团集结的信号。你颤抖着握紧手中唯一完好的东西——一把生锈的短剑。',promptExtra:'黑暗奇幻中世纪。有骑士、法师、牧师等职业。有黑暗魔法、亡灵、恶魔。色调灰暗压抑。'},{id:'cyber',name:'赛博迷城',subtitle:'赛博朋克·未来都市',desc:'2089年，巨型企业掌控一切。霓虹灯下的底层街区，义体改造与数据黑客是生存之道。',accent:'#00e5ff',accentLight:'#40ffff',accentDark:'#0090a0',startLoc:'新东京·下层区',intro:'意识回笼的瞬间，你感受到的是后脑勺传来的剧痛。你躺在一张脏兮兮的手术台上，头顶的霓虹灯管闪烁不定。一个机械臂正在缝合你太阳穴上的伤口。"别动，还有三针。"一个沙哑的声音说。',promptExtra:'赛博朋克未来世界。有义体改造、神经链接、数据黑客。NPC使用现代语言。'}];
+
+var MOODS={'森林':{g:'linear-gradient(180deg,#0a1a0a,#1a3a1a)',f:'brightness(0.7)'},'沙漠':{g:'linear-gradient(180deg,#3a2a0a,#5a4010)',f:'sepia(0.5)'},'洞穴':{g:'linear-gradient(180deg,#080808,#1a1a2a)',f:'brightness(0.35)'},'城镇':{g:'linear-gradient(180deg,#1a1520,#2a2030)',f:'brightness(0.8)'},'废墟':{g:'linear-gradient(180deg,#1a1a1a,#2a2020)',f:'brightness(0.6)'},'战场':{g:'linear-gradient(180deg,#1a0a0a,#3a1010)',f:'brightness(0.5)'},'霓虹':{g:'linear-gradient(180deg,#0a0a1a,#1a0a2a)',f:'brightness(0.7) saturate(1.5)'}};
+
+var API_BASE='https://falling-sunset-3621.meikoliu2020.workers.dev';
+var DEF_MODEL='glm-4-flash';
+var G=null,LOADING=false,SBUF='',EEL=null,SELW=null;
+
+function $i(id){return document.getElementById(id)}
+function loadCfg(){try{return Object.assign({model:DEF_MODEL},JSON.parse(localStorage.getItem('mj_c')||'{}'))}catch(e){return{model:DEF_MODEL}}}
+function saveCfg(c){localStorage.setItem('mj_c',JSON.stringify(c))}
+dbg('ok','o');
+
+function callAI(msgs,onChunk,onDone,onErr){
+  var cfg=loadCfg();
+  var body=JSON.stringify({model:cfg.model,messages:msgs,temperature:0.85,max_tokens:600,stream:true});
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST',API_BASE+'/api/chat',true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.onerror=function(){onErr(new Error('网络连接失败'))};
+  xhr.onload=function(){
+    if(xhr.status>=200&&xhr.status<300){
+      var lines=xhr.responseText.split('\n');
+      for(var i=0;i<lines.length;i++){
+        var t=lines[i].trim();
+        if(!t||t.indexOf('data:')!==0)continue;
+        var d=t.substring(5).trim();
+        if(d==='[DONE]')continue;
+        try{var p=JSON.parse(d);var c=p.choices&&p.choices[0]&&p.choices[0].delta&&p.choices[0].delta.content;if(c)onChunk(c)}catch(e){}
+      }
+      onDone();
+    }else{onErr(new Error('API错误('+xhr.status+')'))}
+  };
+  xhr.send(body);
+}
+
+function testConnection(){
+  dbg('test...','');
+  var cfg=loadCfg();
+  var body=JSON.stringify({model:cfg.model,messages:[{role:'user',content:'你好'}],max_tokens:10,stream:false});
+  var xhr=new XMLHttpRequest();
+  xhr.open('POST',API_BASE+'/api/chat',true);
+  xhr.setRequestHeader('Content-Type','application/json');
+  xhr.onerror=function(){alert('网络失败')};
+  xhr.onload=function(){
+    if(xhr.status===200){try{var d=JSON.parse(xhr.responseText);alert('连接成功: '+d.choices[0].message.content)}catch(e){alert('解析失败')}}else{alert('错误('+xhr.status+')')}
+  };
+  xhr.send(body);
+}
+
+function detectMood(text){for(var kw in MOODS){if(text.indexOf(kw)>-1)return MOODS[kw]}return null}
+function applyScene(loc,text){var mood=detectMood(text)||detectMood(loc)||{};var bg=$i('scene-bg');if(mood.g)bg.style.background=mood.g;$i('scene-atmosphere').style.filter=mood.f||'none';$i('scene-label').textContent=loc||'';}
+
+function buildPrompt(){
+  var w=null;for(var i=0;i<WORLDS.length;i++){if(WORLDS[i].id===G.worldId)w=WORLDS[i];}
+  return '你是「墨境」的文字RPG游戏主持人。用生动的中文讲述故事。\n\n## 世界：'+w.name+'\n'+w.desc+'\n'+w.promptExtra+'\n\n## 规则\n1. 每次回复150-300字\n2. 使用标记（玩家看不到）：\n[HP:+N][HP:-N][MP:+N][MP:-N][EXP:+N][GOLD:+N][GOLD:-N][获得物品:名][失去物品:名][到达地点:名][任务更新:描述][LEVELUP]\n3. 结尾提供2-4个选项：\n【A】选项\n【B】选项\n4. 经验满时[LEVELUP]\n\n## 角色\n'+G.player.name+'|Lv.'+G.player.level+'|HP:'+G.player.hp+'/'+G.player.maxHp+' MP:'+G.player.mp+'/'+G.player.maxMp+'|ATK:'+G.player.attack+' DEF:'+G.player.defense+'|金币:'+G.player.gold+'\n背包：'+(G.player.inventory.length?G.player.inventory.join('、'):'空')+'\n位置：'+G.location+'\n任务：'+(G.quests.length?G.quests.join('; '):'无')+(G.summary?'\n## 剧情摘要\n'+G.summary:'');
+}
+function buildMsgs(input){return[{role:'system',content:buildPrompt()}].concat(G.recent.slice(-12)).concat([{role:'user',content:input}])}
+
+function parseComplete(text){
+  var evts=[];
+  var clean=text.replace(/$$([^$$]+)\]/g,function(m,inner){
+    var pm;
+    pm=inner.match(/^(HP|MP|EXP|GOLD)[：:]([+-]?\d+)$/);
+    if(pm){evts.push({type:pm[1],val:pm[2]});return''}
+    pm=inner.match(/^(获得物品|失去物品|到达地点|任务更新|状态效果)[：:](.+)$/);
+    if(pm){evts.push({type:pm[1],val:pm[2]});return''}
+    if(inner==='LEVELUP'){evts.push({type:'LEVELUP'});return''}
+    return m;
+  });
+  var opts=[];var re=/【([A-D])】\s*([^【]+)/g;var m;
+  while((m=re.exec(clean))!==null)opts.push({l:m[1],t:m[2].trim()});
+  clean=clean.replace(/【[A-D]】[^【]*/g,'').trim();
+  return{clean:clean,evts:evts,opts:opts};
+}
+
+function newGame(wid,name){
+  G={worldId:wid,player:{name:name,level:1,hp:100,maxHp:100,mp:50,maxMp:50,attack:10,defense:5,exp:0,gold:20,inventory:[]},location:'',quests:[],summary:'',recent:[],allMsgs:[],turn:0};
+  for(var i=0;i<WORLDS.length;i++){if(WORLDS[i].id===wid){G.location=WORLDS[i].startLoc;break}}
+}
+function applyEvts(evts){
+  var p=G.player;
+  for(var i=0;i<evts.length;i++){
+    var e=evts[i];var v=parseInt(e.val);
+    if(e.type==='HP'){p.hp=Math.max(0,Math.min(p.maxHp,p.hp+v));if(p.hp<=0){addSys('你倒下了…HP恢复至1');p.hp=1}}
+    else if(e.type==='MP'){p.mp=Math.max(0,Math.min(p.maxMp,p.mp+v))}
+    else if(e.type==='EXP'){p.exp+=v}
+    else if(e.type==='GOLD'){p.gold=Math.max(0,p.gold+v)}
+    else if(e.type==='获得物品'){if(p.inventory.indexOf(e.val)<0){p.inventory.push(e.val);notify('获得：'+e.val,'success')}}
+    else if(e.type==='失去物品'){var idx=p.inventory.indexOf(e.val);if(idx>-1)p.inventory.splice(idx,1)}
+    else if(e.type==='到达地点'){G.location=e.val;$i('g-location').textContent=e.val;notify('到达：'+e.val,'success');applyScene(e.val,e.val)}
+    else if(e.type==='任务更新'){if(G.quests.indexOf(e.val)<0){G.quests.push(e.val);notify('任务：'+e.val,'success')}}
+    else if(e.type==='LEVELUP'){levelUp()}
+  }
+  if(p.exp>=p.level*100)levelUp();
+  renderStats();
+}
+function levelUp(){var p=G.player;p.level++;p.exp-=(p.level-1)*100;if(p.exp<0)p.exp=0;p.maxHp+=15;p.hp=p.maxHp;p.maxMp+=10;p.mp=p.maxMp;p.attack+=3;p.defense+=2;notify('升级！Lv.'+p.level,'success');addSys('✦ 升级！达到 Lv.'+p.level)}
+function showScreen(s){var all=document.querySelectorAll('.screen');for(var i=0;i<all.length;i++)all[i].classList.remove('active');$i('screen-'+s).classList.add('active')}
+function renderStats(){
+  var p=G.player;
+  $i('hp-bar').style.width=(p.hp/p.maxHp*100)+'%';$i('mp-bar').style.width=(p.mp/p.maxMp*100)+'%';
+  $i('hp-val').textContent=p.hp+'/'+p.maxHp;$i('mp-val').textContent=p.mp+'/'+p.maxMp;
+  $i('s-lv').textContent=p.level;$i('s-atk').textContent=p.attack;$i('s-def').textContent=p.defense;
+  $i('s-exp').textContent=p.exp+'/'+p.level*100;$i('s-gold').textContent=p.gold;$i('g-location').textContent=G.location;
+  var ih='';for(var i=0;i<p.inventory.length;i++)ih+='<div class="inv-item">'+esc(p.inventory[i])+'</div>';
+  $i('inv-list').innerHTML=ih||'<div class="empty-hint">空空如也</div>';
+  var qh='';for(var i=0;i<G.quests.length;i++)qh+='<div class="quest-item">'+esc(G.quests[i])+'</div>';
+  $i('quest-list').innerHTML=qh||'<div class="empty-hint">暂无任务</div>';
+}
+function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function fmtText(t){return esc(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>')}
+function addEntry(text,cls){var c=$i('narr-content');var d=document.createElement('div');d.className='narr-entry '+(cls||'');d.innerHTML=fmtText(text);c.appendChild(d);$i('narr-area').scrollTop=$i('narr-area').scrollHeight;return d}
+function addSys(t){addEntry(t,'system')}
+function updateEntry(el,text){el.innerHTML=fmtText(text);$i('narr-area').scrollTop=$i('narr-area').scrollHeight}
+function showThinking(){var c=$i('narr-content');var d=document.createElement('div');d.className='thinking';d.id='thinking-ind';d.innerHTML='<span></span><span></span><span></span>';c.appendChild(d);$i('narr-area').scrollTop=$i('narr-area').scrollHeight}
+function hideThinking(){var el=$i('thinking-ind');if(el)el.remove()}
+function showChoices(opts){
+  var area=$i('choices-area');area.innerHTML='';
+  for(var i=0;i<opts.length;i++){
+    (function(o,idx){
+      var b=document.createElement('button');b.className='choice-btn';
+      b.innerHTML='<span class="choice-letter">'+o.l+'</span>'+esc(o.t);
+      b.style.opacity='0';b.style.transform='translateX(-10px)';
+      b.onclick=function(){doAction('['+o.l+'] '+o.t)};
+      area.appendChild(b);
+      setTimeout(function(){b.style.transition='all .3s ease';b.style.opacity='1';b.style.transform='translateX(0)'},idx*80);
+    })(opts[i],i);
+  }
+}
+function clearChoices(){$i('choices-area').innerHTML=''}
+function setLoad(v){LOADING=v;$i('btn-send').disabled=v;$i('action-input').disabled=v;if(v){clearChoices();showThinking()}else{hideThinking();$i('action-input').focus()}}
+function notify(text,type){var w=$i('notif-wrap');if(!w){w=document.createElement('div');w.id='notif-wrap';w.className='notif-wrap';document.body.appendChild(w)}var n=document.createElement('div');n.className='notif notif-'+(type||'info');n.textContent=text;w.appendChild(n);setTimeout(function(){n.classList.add('show')},10);setTimeout(function(){n.classList.remove('show');setTimeout(function(){n.remove()},400)},3000)}
+function openModal(id){$i(id).classList.add('active')}
+function closeModal(id){$i(id).classList.remove('active')}
+
+function doAction(text){
+  if(LOADING||!G)return;
+  addEntry(text,'player-action');
+  G.recent.push({role:'user',content:text});G.allMsgs.push({role:'user',content:text});
+  setLoad(true);SBUF='';EEL=null;
+  callAI(buildMsgs(text),
+    function(chunk){SBUF+=chunk;if(!EEL&&SBUF.length>5){hideThinking();EEL=addEntry('','')}if(EEL)updateEntry(EEL,SBUF)},
+    function(){
+      hideThinking();
+      var r=parseComplete(SBUF);
+      if(EEL)updateEntry(EEL,r.clean);else if(r.clean)addEntry(r.clean);
+      applyEvts(r.evts);
+      if(r.opts.length)showChoices(r.opts);
+      G.recent.push({role:'assistant',content:SBUF});G.allMsgs.push({role:'assistant',content:SBUF});
+      G.turn++;setLoad(false);
+      dbg('轮'+G.turn+' ok','o');
+    },
+    function(err){hideThinking();addSys('⚠ '+err.message);setLoad(false);dbg('fail','e')}
+  );
+}
+function sendAction(){var inp=$i('action-input');var t=inp.value.trim();if(!t||LOADING)return;inp.value='';doAction(t)}
+function populateSettings(){var c=loadCfg();$i('set-model').value=c.model||''}
+function doSaveSettings(){saveCfg({model:$i('set-model').value.trim()||DEF_MODEL});closeModal('modal-settings');notify('设置已保存','success')}
+function startGame(){
+  if(!SELW){notify('请先选择一个世界','error');return}
+  var name=$i('char-name').value.trim()||'旅人';
+  newGame(SELW,name);
+  var w=null;for(var i=0;i<WORLDS.length;i++){if(WORLDS[i].id===SELW)w=WORLDS[i];}
+  document.documentElement.style.setProperty('--accent',w.accent);
+  document.documentElement.style.setProperty('--accent-light',w.accentLight);
+  document.documentElement.style.setProperty('--accent-dark',w.accentDark);
+  applyScene(w.startLoc,'');
+  showScreen('game');renderStats();addEntry(w.intro);
+  dbg('start','o');
+  doAction('【游戏开始】请描述我当前的处境和周围环境，然后给我几个行动选项。');
+}
+
+function init(){
+  var wc=$i('world-cards');
+  for(var i=0;i<WORLDS.length;i++){
+    (function(w){
+      var c=document.createElement('div');c.className='world-card';c.style.setProperty('--card-accent',w.accent);
+      c.innerHTML='<div class="world-card-name" style="color:'+w.accent+'">'+w.name+'</div><div class="world-card-sub">'+w.subtitle+'</div><div class="world-card-desc">'+w.desc+'</div>';
+      c.onclick=function(){var all=document.querySelectorAll('.world-card');for(var j=0;j<all.length;j++)all[j].classList.remove('selected');c.classList.add('selected');SELW=w.id;$i('char-setup').style.display='flex';$i('char-name').focus()};
+      wc.appendChild(c);
+    })(WORLDS[i]);
+  }
+  $i('btn-start').onclick=startGame;
+  $i('char-name').onkeydown=function(e){if(e.key==='Enter')startGame()};
+  $i('action-input').onkeydown=function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAction()}};
+  $i('btn-send').onclick=sendAction;
+  $i('btn-toggle-sidebar').onclick=function(){$i('game-sidebar').classList.toggle('open')};
+  $i('btn-settings-title').onclick=function(){populateSettings();openModal('modal-settings')};
+  $i('btn-settings-game').onclick=function(){populateSettings();openModal('modal-settings')};
+  $i('settings-form').onsubmit=function(e){e.preventDefault();doSaveSettings()};
+  $i('btn-test').onclick=testConnection;
+  dbg('init ok','o');
+}
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
