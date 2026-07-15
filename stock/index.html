@@ -16,8 +16,8 @@
     .header button:active { background: #d03030; }
     .header button.btn-refresh { background: #2196F3; }
     .header button.btn-refresh:active { background: #1976D2; }
-    .header button.btn-signals { background: #ff9800; }
-    .header button.btn-signals:active { background: #f57c00; }
+    .header button.btn-signals { background: #9c27b0; }
+    .header button.btn-signals:active { background: #7b1fa2; }
     .header .btn-back { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid #3a4a5a; border-radius: 6px; background: #1a2733; color: #89a; font-size: 16px; text-decoration: none; flex-shrink: 0; }
     .header .btn-back:active { background: #2a3a4a; color: #fff; }
 
@@ -888,7 +888,7 @@ function buildApiUrls(symbol, days, period) {
 
   if (WORKER_URL) {
     // Worker 代理 (需要把 symbol 转回 code)
-    var code = symbol.replace(/^[shsz]/, '');
+    var code = symbol.substring(2);
     urls.push({ url: WORKER_URL + '/api/kline?code=' + code, mode: 'worker', src: 'tencent' });
   } else {
     // 无 Worker: 尝试 CORS 直连
