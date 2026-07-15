@@ -886,17 +886,12 @@ function buildApiUrls(symbol, days, period) {
     tencentUrl = 'https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=' + symbol + ',' + params.txType + ',,,' + days + ',qfq';
   }
 
-  var isLocal = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-  if (isLocal) {
-    // 本地开发: 通过同源 /proxy (server.py)
-    urls.push({ url: '/proxy?url=' + encodeURIComponent(tencentUrl), mode: 'proxy', src: 'tencent' });
-  } else if (WORKER_URL) {
-    // GitHub Pages + Worker: 通过 Worker 代理 (需要把 symbol 转回 code)
+  if (WORKER_URL) {
+    // Worker 代理 (需要把 symbol 转回 code)
     var code = symbol.replace(/^[shsz]/, '');
     urls.push({ url: WORKER_URL + '/api/kline?code=' + code, mode: 'worker', src: 'tencent' });
   } else {
-    // GitHub Pages 无 Worker: 尝试 CORS 直连
+    // 无 Worker: 尝试 CORS 直连
     urls.push({ url: tencentUrl, mode: 'cors', src: 'tencent' });
   }
 
